@@ -29,6 +29,7 @@ type NvimClient
 end
 
 # this is probably not most efficient in the common case (no contention)
+# but it's the simplest way to assure task-safety of reading from the stream
 function readloop(c::NvimClient)
     while true
         msg = unpack(c.stream)
@@ -75,7 +76,7 @@ for (name, info) in _types
     @eval begin 
         immutable $(name) <: NvimObject
             # TODO: use a fixarray or Uint64
-            cli::NvimClient
+            client::NvimClient
             hnd::Vector{Uint8}
         end
         typeid(::$(name)) = $id
@@ -121,12 +122,47 @@ retconvert(c,val::Vector) = [retconvert(c,v) for v in val]
 retconvert(c,val::Ext) = nvimobject(c, val)
 retconvert(c,val) = val
 
-for f in _functions
+# a stagedfunction will probably be simpler and better
+function build_function(f)
     name = f[:name]
-    shortname = symbol(split(string(name), "_", 2)[2])
+    params = f[:parameters]
+
+    parts = split(string(name), "_", 2)
+    reciever = parts[1]
+    shortname = symbol(parts[2])
     if shortname == "eval"; shortname = "vim_eval"; end
 
-    #println(name,shortname)
+    body = Any[]
+    args = Any[ symbol(string("a_",p[2])) for p in params]
+    j_args = copy(args)
+    #Very Magic
+    if reciever == "vim"
+        unshift!(j_args, :( c::NvimClient))
+    else
+        a_recv = args[1]
+        j_args[1] = :( ($a_recv )::($(params[1][1])) )
+        push!(body, :( c = ($a_recv).client ) )
+    end
+
+    #TODO: walk through args, make type-check julia-side
+
+    #probaby is/should be a cleaner way...
+    arglist = :( Any[] )
+    append!(arglist.args, args)
+    push!(body, :( send(c, $(Meta.quot(name)), $arglist)))
+
+    #TODO: handle retvals typestable-wise
+
+    j_call = Expr(:call, shortname, j_args...)
+    fun = Expr(:function, j_call, Expr(:block, body...) )
+    println(fun)
+    fun
+end
+blessed = Set([:vim_get_buffers , :buffer_set_line, :buffer_get_line])
+for f in _functions
+    if f[:name] in blessed
+        eval(build_function(f))
+    end
 end
 
 
