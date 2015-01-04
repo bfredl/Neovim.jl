@@ -148,7 +148,7 @@ function build_function(f)
     parts = split(string(name), "_", 2)
     reciever = parts[1]
     shortname = symbol(parts[2])
-    if shortname == "eval"; shortname = "vim_eval"; end
+    if shortname == :eval; shortname = :vim_eval; end
 
     body = Any[]
     args = Any[ symbol(string("a_",p[2])) for p in params]
