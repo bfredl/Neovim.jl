@@ -4,16 +4,13 @@ using MsgPack
 import MsgPack: pack, unpack
 import Base: send
 
+export NvimClient, nvim_connect, Buffer, Tabpage, Window
+
 REQUEST = 0
 RESPONSE = 1
 NOTIFICATION = 2
 
-immutable NVHandle{T}
-    hnd::Int
-end
-pack(s,h::NVHandle) = pack(s,hnd)
-
-type NVClient
+type NvimClient
     # TODO: generalize to other transports
     stream::Base.Pipe
     channel_id::Int
@@ -23,7 +20,7 @@ type NVClient
     rettypes::Dict{Symbol,Symbol}
     classes::Set{Symbol}
 
-    function NVClient(path::ByteString)
+    function NvimClient(path::ByteString)
         stream = connect(path)
         c = new(stream, -1, 0, (Int=>RemoteRef)[])
         c.reader = @async readloop(c)
@@ -32,7 +29,7 @@ type NVClient
 end
 
 # this is probably not most efficient in the common case (no contention)
-function readloop(c::NVClient)
+function readloop(c::NvimClient)
     while true
         msg = unpack(c.stream)
         #println(msg)
@@ -45,8 +42,8 @@ function readloop(c::NVClient)
     end
 end
 
-function neovim_connect(path::ByteString)
-    c = NVClient(path)
+function nvim_connect(path::ByteString)
+    c = NvimClient(path)
     c.channel_id, metadata = send(c, "vim_get_api_info", [])
     # doesn't work
     #if metadata != _metadata
@@ -78,10 +75,11 @@ for (name, info) in _types
     @eval begin 
         immutable $(name) <: NvimObject
             # TODO: use a fixarray or Uint64
+            cli::NvimClient
             hnd::Vector{Uint8}
         end
         typeid(::$(name)) = $id
-        nvimobject(::Type{_Typeid{$id}}, hnd) = $(name)(hnd)
+        nvimobject(c, ::Type{_Typeid{$id}}, hnd) = $(name)(c, hnd)
     end
 end
 
@@ -93,17 +91,10 @@ function MsgPack.pack(s, o::NvimObject)
     MsgPack.pack(s, Ext(tid, o.hnd))
 end
 
-Base.convert(::Type{NvimObject}, e::Ext) = nvimobject(_Typeid{int(e.typecode)}, e.data)
+#on 0.4 this will be NvimObject
+nvimobject(c, e::Ext) = nvimobject(c, _Typeid{int(e.typecode)}, e.data)
 
-for f in _functions
-    name = f[:name]
-    shortname = symbol(split(string(name), "_", 2)[2])
-    if shortname == "eval"; shortname = "vim_eval"; end
-    #println(name,shortname)
-end
-
-
-function send(c::NVClient, meth, args)
+function send(c::NvimClient, meth, args)
     reqid = c.next_reqid
     c.next_reqid += 1
     # TODO: are these things cheap to alloc or should they be reused
@@ -116,36 +107,27 @@ function send(c::NVClient, meth, args)
     (err, res) = take!(res) #blocking
     # TODO: make these recoverable
     if err !== nothing
-        println(typeof(err)) #FIXME
+        println(retconvert(c,err)) #FIXME
         error("rpc error")
     end
     #TODO: use METADATA to be type-stabler
-    retconvert(res)
+    retconvert(c,res)
 end
 
 # FIXME: the elephant in the room (i.e. handle &encoding)
-retconvert(val::Dict) = Dict{Any,Any}([(retconvert(k),retconvert(v)) for (k,v) in val])
-retconvert(val::Vector{Uint8}) = bytestring(val)
-retconvert(val::Vector) = [retconvert(v) for v in val]
-retconvert(val::Ext) = convert(NvimObject, val)
-retconvert(val) = val
+retconvert(c,val::Dict) = Dict{Any,Any}([(retconvert(c,k),retconvert(c,v)) for (k,v) in val])
+retconvert(c,val::Vector{Uint8}) = bytestring(val)
+retconvert(c,val::Vector) = [retconvert(c,v) for v in val]
+retconvert(c,val::Ext) = nvimobject(c, val)
+retconvert(c,val) = val
 
-# for testing, we should generate typesafe wrappers
-function nvcall(c::NVClient, meth::Symbol, args...)
-    packargs = Any[]
-    for a in args
-        if isa(a,NVHandle)
-            a = a.hnd
-        end
-        push!(packargs, a)
-    end
-    res = send(c, bytestring(meth), packargs)
-    res_type = c.rettypes[meth]
-    if res_type in c.classes
-        NVHandle{restype}(res)
-    else #FIXME: strings
-        res
-    end
+for f in _functions
+    name = f[:name]
+    shortname = symbol(split(string(name), "_", 2)[2])
+    if shortname == "eval"; shortname = "vim_eval"; end
+
+    #println(name,shortname)
 end
+
 
 end
