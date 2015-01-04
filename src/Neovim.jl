@@ -75,6 +75,15 @@ const _metadata = _get_metadata()
 const _types = _metadata[:types]
 const _functions = _metadata[:functions]
 
+# will break if the api starts using overloading
+const api_methods = [f[:name] => f for f in _functions]
+
+const typemap = (Symbol=>Type)[
+    :Integer => Integer,
+    :Boolean => Bool,
+    :String => Union(ByteString, Vector{Uint8}),
+]
+
 abstract NvimObject
 # when upgrading to 0.4; use builtin typeconst
 abstract _Typeid{N}
@@ -89,6 +98,7 @@ for (name, info) in _types
         end
         typeid(::$(name)) = $id
         nvimobject(c, ::Type{_Typeid{$id}}, hnd) = $(name)(c, hnd)
+        typemap[$(Meta.quot(name))] = $name
     end
 end
 
@@ -129,6 +139,7 @@ retconvert(c,val::Vector) = [retconvert(c,v) for v in val]
 retconvert(c,val::Ext) = nvimobject(c, val)
 retconvert(c,val) = val
 
+
 # a stagedfunction will probably be simpler and better
 function build_function(f)
     name = f[:name]
@@ -141,19 +152,22 @@ function build_function(f)
 
     body = Any[]
     args = Any[ symbol(string("a_",p[2])) for p in params]
-    j_args = copy(args)
-    #Very Magic
+    j_args = Any[]
+
+    for (i,p) in enumerate(params)
+        #this is probably too restrictive sometimes,
+        # use convert for some types (sequences)?
+        t = get(typemap, p[1], Any)
+        push!(j_args, :( $(args[i])::($t) ))
+    end
+
     if reciever == "vim"
         unshift!(j_args, :( c::NvimClient))
     else
-        a_recv = args[1]
-        j_args[1] = :( ($a_recv )::($(params[1][1])) )
-        push!(body, :( c = ($a_recv).client ) )
+        push!(body, :( c = ($(args[1])).client ) )
     end
 
-    #TODO: walk through args, make type-check julia-side
-
-    #probaby is/should be a cleaner way...
+    #when array constructor non-concatenating, we could drop the Any
     arglist = :( Any[] )
     append!(arglist.args, args)
     push!(body, :( send(c, $(Meta.quot(name)), $arglist)))
