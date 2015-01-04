@@ -2,13 +2,12 @@ module Neovim
 
 using MsgPack
 import MsgPack: pack, unpack
-import Base: send
 
 export NvimClient, nvim_connect, nvim_spawn, Buffer, Tabpage, Window
 
-REQUEST = 0
-RESPONSE = 1
-NOTIFICATION = 2
+const REQUEST = 0
+const RESPONSE = 1
+const NOTIFICATION = 2
 
 type NvimClient{S,I}
     # TODO: generalize to other transports
@@ -24,41 +23,79 @@ type NvimClient{S,I}
     NvimClient(a,b,c,d,e,f) = new(a,b,c,d,e,f)
 end
 
-function NvimClient{S,I}(input::S, output::S, instance::I)
+function NvimClient{S,I}(input::S, output::S, instance::I, handler=DummyHandler())
     c = NvimClient{S,I}(input, output, instance, -1, 0, (Int=>RemoteRef)[])
-    c.reader = @async readloop(c)
-    c.channel_id, metadata = send(c, "vim_get_api_info", [])
+    c.reader = @async readloop(c,handler)
+    c.channel_id, metadata = send_request(c, "vim_get_api_info", [])
     if symbolize(metadata) != _metadata
         println("warning: possibly incompatible api metadata")
     end
     c
 end
 
+# too inconvenient api to supply handler here?
+function nvim_connect(path::ByteString, args...)
+    s = connect(path)
+    NvimClient(s,s,nothing, args...)
+end
+
+function nvim_spawn(args...)
+    out, inp, proc = readandwrite(`nvim --embed`)
+    NvimClient(inp, out, proc, args...)
+end
+
 # this is probably not most efficient in the common case (no contention)
 # but it's the simplest way to assure task-safety of reading from the stream
-function readloop(c::NvimClient)
+function readloop(c::NvimClient, handler)
     while true
         msg = unpack(c.output)
-        #println(msg)
         kind = msg[1]::Int
-        serial = msg[2]::Int
         if kind == RESPONSE
+            serial = msg[2]::Int
             ref = pop!(c.waiting, serial)
             put!(ref, (msg[3], msg[4]))
+        elseif kind == NOTIFICATION
+            try
+                on_notify(handler, c, bytestring(msg[2]), retconvert(c,msg[3]))
+            catch err
+                println("Excetion caught in notification handler")
+                println(err)
+            end
+        elseif kind == REQUEST
+            serial = msg[2]::Int
+            try
+                on_request(handler, c, serial, bytestring(msg[3]), retconvert(c,msg[4]))
+            catch err
+                println("Excetion caught in request handler")
+                println(err)
+            end
         end
     end
 end
 
-function nvim_connect(path::ByteString)
-    s = connect(path)
-    NvimClient(s,s,nothing)
+# we cannot use pack(stream, msg) as it's not synchronous
+_send(c, msg) = write(c.input, pack(msg))
+
+# when overriding these, note that this runs in the reader task,
+# use @async/@spawn when doing anything long-running or blocking,
+# including method calls to nvim
+immutable DummyHandler; end
+function on_notify(::DummyHandler, c, name, args)
+    println("notification: $name $args")
 end
 
-function nvim_spawn()
-    out, inp, proc = readandwrite(`nvim --embed`)
-    NvimClient(inp, out, proc)
+function on_request(::DummyHandler, c, serial, nam, args)
+    println("WARNING: ignoring request $name $args, please override `on_request`")
+    reply_error(c, serial, "Client cannot handle request, please override `on_request`")
 end
 
+function reply_error(c, serial, err)
+    _send(c, {RESPONSE, serial, err, nothing}) 
+end
+
+function reply_result(c, serial, res)
+    _send(c, {RESPONSE, serial, nothing, res})
+end
 
 symbolize(val::Dict) = Dict{Symbol,Any}([(symbolize(k),symbolize(v)) for (k,v) in val])
 symbolize(val::Vector{Uint8}) = symbol(bytestring(val))
@@ -113,7 +150,7 @@ end
 #on 0.4 this will be NvimObject
 nvimobject(c, e::Ext) = nvimobject(c, _Typeid{int(e.typecode)}, e.data)
 
-function send(c::NvimClient, meth, args)
+function send_request(c::NvimClient, meth, args)
     reqid = c.next_reqid
     c.next_reqid += 1
     # TODO: are these things cheap to alloc or should they be reused
@@ -121,8 +158,7 @@ function send(c::NvimClient, meth, args)
     c.waiting[reqid] = res
     meth = string(meth)
 
-    msg = pack({0, reqid, meth, args})
-    write(c.input, msg)
+    _send(c, {REQUEST, reqid, meth, args})
     (err, res) = take!(res) #blocking
     # TODO: make these recoverable
     if err !== nothing
@@ -170,7 +206,7 @@ function build_function(f)
     #when array constructor non-concatenating, we could drop the Any
     arglist = :( Any[] )
     append!(arglist.args, args)
-    push!(body, :( send(c, $(Meta.quot(name)), $arglist)))
+    push!(body, :( send_request(c, $(Meta.quot(name)), $arglist)))
 
     #TODO: handle retvals typestable-wise
 
