@@ -70,11 +70,29 @@ const _types = _metadata[:types]
 const _functions = _metadata[:functions]
 
 abstract NvimObject
+# when upgrading to 0.4; use builtin typeconst
+abstract _Typeid{N}
 
 for (name, info) in _types
     id = info[:id]
-    #println(name, id)
+    @eval begin 
+        immutable $(name) <: NvimObject
+            # TODO: use a fixarray or Uint64
+            hnd::Vector{Uint8}
+        end
+        typeid(::$(name)) = $id
+        nvimobject(::Type{_Typeid{$id}}, hnd) = $(name)(hnd)
+    end
 end
+
+#Not really module-interface clean, I know...
+function MsgPack.pack(s, o::NvimObject)
+    tid = typeid(o)
+    MsgPack.pack(s, Ext(tid, o.hnd))
+end
+
+Base.convert(::Type{NvimObject}, e::Ext) = nvimobject(_Typeid{int(e.typecode)}, e.data)
+
 for f in _functions
     name = f[:name]
     shortname = symbol(split(string(name), "_", 2)[2])
