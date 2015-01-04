@@ -1,6 +1,5 @@
 using Neovim
 import Neovim: get_buffers, set_line, get_line
-
 nvim = nvim_spawn()
 buf = get_buffers(nvim)[1]
 @assert isa(buf,Buffer)

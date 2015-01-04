@@ -28,10 +28,9 @@ function NvimClient{S,I}(input::S, output::S, instance::I)
     c = NvimClient{S,I}(input, output, instance, -1, 0, (Int=>RemoteRef)[])
     c.reader = @async readloop(c)
     c.channel_id, metadata = send(c, "vim_get_api_info", [])
-    # doesn't work
-    #if metadata != _metadata
-    #    println("warning: possibly incompatible api metadata")
-    #end
+    if symbolize(metadata) != _metadata
+        println("warning: possibly incompatible api metadata")
+    end
     c
 end
 
@@ -63,12 +62,13 @@ end
 
 symbolize(val::Dict) = Dict{Symbol,Any}([(symbolize(k),symbolize(v)) for (k,v) in val])
 symbolize(val::Vector{Uint8}) = symbol(bytestring(val))
+symbolize(val::ByteString) = symbol(val)
 symbolize(val::Vector) = [symbolize(v) for v in val]
 symbolize(val) = val
 
 function _get_metadata()
     data = readall(`nvim --api-info`)
-    metadata = symbolize(unpack(data))
+    return symbolize(unpack(data))
 end
 
 const _metadata = _get_metadata()
