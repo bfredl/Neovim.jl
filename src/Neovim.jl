@@ -4,33 +4,42 @@ using MsgPack
 import MsgPack: pack, unpack
 import Base: send
 
-export NvimClient, nvim_connect, Buffer, Tabpage, Window
+export NvimClient, nvim_connect, nvim_spawn, Buffer, Tabpage, Window
 
 REQUEST = 0
 RESPONSE = 1
 NOTIFICATION = 2
 
-type NvimClient
+type NvimClient{S,I}
     # TODO: generalize to other transports
-    stream::Base.Pipe
+
+    input::S #input to nvim
+    output::S
+    instance::I
+
     channel_id::Int
     next_reqid::Int
     waiting::Dict{Int,RemoteRef}
     reader::Task
+    NvimClient(a,b,c,d,e,f) = new(a,b,c,d,e,f)
+end
 
-    function NvimClient(path::ByteString)
-        stream = connect(path)
-        c = new(stream, -1, 0, (Int=>RemoteRef)[])
-        c.reader = @async readloop(c)
-        c
-    end
+function NvimClient{S,I}(input::S, output::S, instance::I)
+    c = NvimClient{S,I}(input, output, instance, -1, 0, (Int=>RemoteRef)[])
+    c.reader = @async readloop(c)
+    c.channel_id, metadata = send(c, "vim_get_api_info", [])
+    # doesn't work
+    #if metadata != _metadata
+    #    println("warning: possibly incompatible api metadata")
+    #end
+    c
 end
 
 # this is probably not most efficient in the common case (no contention)
 # but it's the simplest way to assure task-safety of reading from the stream
 function readloop(c::NvimClient)
     while true
-        msg = unpack(c.stream)
+        msg = unpack(c.output)
         #println(msg)
         kind = msg[1]::Int
         serial = msg[2]::Int
@@ -42,14 +51,15 @@ function readloop(c::NvimClient)
 end
 
 function nvim_connect(path::ByteString)
-    c = NvimClient(path)
-    c.channel_id, metadata = send(c, "vim_get_api_info", [])
-    # doesn't work
-    #if metadata != _metadata
-    #    println("warning: possibly incompatible api metadata")
-    #end
-    return c
+    s = connect(path)
+    NvimClient(s,s,nothing)
 end
+
+function nvim_spawn()
+    out, inp, proc = readandwrite(`nvim --embed`)
+    NvimClient(inp, out, proc)
+end
+
 
 symbolize(val::Dict) = Dict{Symbol,Any}([(symbolize(k),symbolize(v)) for (k,v) in val])
 symbolize(val::Vector{Uint8}) = symbol(bytestring(val))
@@ -102,7 +112,7 @@ function send(c::NvimClient, meth, args)
     meth = string(meth)
 
     msg = pack({0, reqid, meth, args})
-    write(c.stream, msg)
+    write(c.input, msg)
     (err, res) = take!(res) #blocking
     # TODO: make these recoverable
     if err !== nothing
