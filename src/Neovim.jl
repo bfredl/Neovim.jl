@@ -17,8 +17,6 @@ type NvimClient
     next_reqid::Int
     waiting::Dict{Int,RemoteRef}
     reader::Task
-    rettypes::Dict{Symbol,Symbol}
-    classes::Set{Symbol}
 
     function NvimClient(path::ByteString)
         stream = connect(path)
@@ -108,8 +106,7 @@ function send(c::NvimClient, meth, args)
     (err, res) = take!(res) #blocking
     # TODO: make these recoverable
     if err !== nothing
-        println(retconvert(c,err)) #FIXME
-        error("rpc error")
+        error(string(meth, ": ", bytestring(err[2])))
     end
     #TODO: use METADATA to be type-stabler
     retconvert(c,res)
@@ -155,15 +152,14 @@ function build_function(f)
 
     j_call = Expr(:call, shortname, j_args...)
     fun = Expr(:function, j_call, Expr(:block, body...) )
-    println(fun)
+    #println(fun)
     fun
 end
-blessed = Set([:vim_get_buffers , :buffer_set_line, :buffer_get_line])
-for f in _functions
-    if f[:name] in blessed
-        eval(build_function(f))
-    end
-end
 
+#TODO: maybe this should be in a submodule
+# then one could do `importall Neovim.API`
+for f in _functions
+    eval(build_function(f))
+end
 
 end
