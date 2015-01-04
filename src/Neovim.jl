@@ -48,16 +48,10 @@ end
 function neovim_connect(path::ByteString)
     c = NVClient(path)
     c.channel_id, metadata = send(c, "vim_get_api_info", [])
-    metadata = unpack(metadata)
-    metadata = symbolize(metadata)
-    if false
-        c.classes = Set{Symbol}([symbol(s) for s in metadata["classes"]])
-        fns = metadata["functions"]
-        c.rettypes = (Symbol=>Symbol)[]
-        for f in fns
-            c.rettypes[symbol(f["name"])] = symbol(f["return_type"])
-        end
-    end
+    # doesn't work
+    #if metadata != _metadata
+    #    println("warning: possibly incompatible api metadata")
+    #end
     return c
 end
 
@@ -66,6 +60,28 @@ symbolize(val::Vector{Uint8}) = symbol(bytestring(val))
 symbolize(val::Vector) = [symbolize(v) for v in val]
 symbolize(val) = val
 
+function _get_metadata()
+    data = readall(`nvim --api-info`)
+    metadata = symbolize(unpack(data))
+end
+
+const _metadata = _get_metadata()
+const _types = _metadata[:types]
+const _functions = _metadata[:functions]
+
+abstract NvimObject
+
+for (name, info) in _types
+    id = info[:id]
+    #println(name, id)
+end
+for f in _functions
+    name = f[:name]
+    shortname = symbol(split(string(name), "_", 2)[2])
+    if shortname == "eval"; shortname = "vim_eval"; end
+    #println(name,shortname)
+end
+
 
 function send(c::NVClient, meth, args)
     reqid = c.next_reqid
@@ -73,8 +89,10 @@ function send(c::NVClient, meth, args)
     # TODO: are these things cheap to alloc or should they be reused
     res = RemoteRef()
     c.waiting[reqid] = res
+    meth = string(meth)
 
-    pack(c.stream, {0, reqid, meth, args})
+    msg = pack({0, reqid, meth, args})
+    write(c.stream, msg)
     (err, res) = take!(res) #blocking
     # TODO: make these recoverable
     if err !== nothing
