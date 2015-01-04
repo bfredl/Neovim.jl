@@ -85,6 +85,8 @@ for (name, info) in _types
     end
 end
 
+=={T<:NvimObject}(a::T,b::T) = a.hnd == b.hnd
+
 #Not really module-interface clean, I know...
 function MsgPack.pack(s, o::NvimObject)
     tid = typeid(o)
@@ -114,11 +116,19 @@ function send(c::NVClient, meth, args)
     (err, res) = take!(res) #blocking
     # TODO: make these recoverable
     if err !== nothing
-        println(typeof(err))
+        println(typeof(err)) #FIXME
         error("rpc error")
     end
-    res
+    #TODO: use METADATA to be type-stabler
+    retconvert(res)
 end
+
+# FIXME: the elephant in the room (i.e. handle &encoding)
+retconvert(val::Dict) = Dict{Any,Any}([(retconvert(k),retconvert(v)) for (k,v) in val])
+retconvert(val::Vector{Uint8}) = bytestring(val)
+retconvert(val::Vector) = [retconvert(v) for v in val]
+retconvert(val::Ext) = convert(NvimObject, val)
+retconvert(val) = val
 
 # for testing, we should generate typesafe wrappers
 function nvcall(c::NVClient, meth::Symbol, args...)
