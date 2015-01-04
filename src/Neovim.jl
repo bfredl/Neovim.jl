@@ -84,7 +84,7 @@ function on_notify(::DummyHandler, c, name, args)
     println("notification: $name $args")
 end
 
-function on_request(::DummyHandler, c, serial, nam, args)
+function on_request(::DummyHandler, c, serial, name, args)
     println("WARNING: ignoring request $name $args, please override `on_request`")
     reply_error(c, serial, "Client cannot handle request, please override `on_request`")
 end
