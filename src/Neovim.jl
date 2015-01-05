@@ -4,6 +4,7 @@ using MsgPack
 import MsgPack: pack, unpack
 
 export NvimClient, nvim_connect, nvim_spawn, Buffer, Tabpage, Window
+export reply_result, reply_error
 
 const REQUEST = 0
 const RESPONSE = 1
