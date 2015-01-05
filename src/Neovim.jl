@@ -3,7 +3,8 @@ module Neovim
 using MsgPack
 import MsgPack: pack, unpack
 
-export NvimClient, nvim_connect, nvim_spawn, Buffer, Tabpage, Window
+export NvimClient, nvim_connect, nvim_spawn, nvim_child
+export Buffer, Tabpage, Window
 export reply_result, reply_error
 
 const REQUEST = 0
@@ -28,6 +29,7 @@ function NvimClient{S,I}(input::S, output::S, instance::I, handler=DummyHandler(
     c = NvimClient{S,I}(input, output, instance, -1, 0, (Int=>RemoteRef)[])
     c.reader = @async readloop(c,handler)
     c.channel_id, metadata = send_request(c, "vim_get_api_info", [])
+    #println("CONNECTED $(c.channel_id)"); flush(STDOUT)
     if symbolize(metadata) != _metadata
         println("warning: possibly incompatible api metadata")
     end
@@ -41,8 +43,18 @@ function nvim_connect(path::ByteString, args...)
 end
 
 function nvim_spawn(args...)
-    out, inp, proc = readandwrite(`nvim --embed`)
-    NvimClient(inp, out, proc, args...)
+    output, input, proc = readandwrite(`nvim --embed`)
+    NvimClient(input, output, proc, args...)
+end
+
+function nvim_child(args...)
+    # make stdio private. Reversed since from nvim's perspective
+    input, output = STDOUT, STDIN
+    debug = open("NEOVIM_JL_DEBUG","w") # TODO: make env var
+    redirect_stdout(debug)
+    redirect_stderr(debug)
+    redirect_stdin()
+    NvimClient(input, output, nothing, args...)
 end
 
 # this is probably not most efficient in the common case (no contention)
@@ -74,8 +86,10 @@ function readloop(c::NvimClient, handler)
     end
 end
 
+Base.wait(c::NvimClient) = wait(c.reader)
+
 # we cannot use pack(stream, msg) as it's not synchronous
-_send(c, msg) = write(c.input, pack(msg))
+_send(c, msg) = (write(c.input, pack(msg)), flush(c.input))
 
 # when overriding these, note that this runs in the reader task,
 # use @async/@spawn when doing anything long-running or blocking,
