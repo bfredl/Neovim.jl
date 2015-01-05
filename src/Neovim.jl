@@ -11,22 +11,19 @@ const REQUEST = 0
 const RESPONSE = 1
 const NOTIFICATION = 2
 
-type NvimClient{S,I}
-    # TODO: generalize to other transports
-
+type NvimClient{S}
     input::S #input to nvim
     output::S
-    instance::I
 
     channel_id::Int
     next_reqid::Int
     waiting::Dict{Int,RemoteRef}
     reader::Task
-    NvimClient(a,b,c,d,e,f) = new(a,b,c,d,e,f)
+    NvimClient(a,b,c,d,e) = new(a,b,c,d,e)
 end
 
-function NvimClient{S,I}(input::S, output::S, instance::I, handler=DummyHandler())
-    c = NvimClient{S,I}(input, output, instance, -1, 0, (Int=>RemoteRef)[])
+function NvimClient{S}(input::S, output::S, handler=DummyHandler())
+    c = NvimClient{S}(input, output, -1, 0, (Int=>RemoteRef)[])
     c.reader = @async readloop(c,handler)
     c.channel_id, metadata = send_request(c, "vim_get_api_info", [])
     #println("CONNECTED $(c.channel_id)"); flush(STDOUT)
@@ -39,12 +36,12 @@ end
 # too inconvenient api to supply handler here?
 function nvim_connect(path::ByteString, args...)
     s = connect(path)
-    NvimClient(s,s,nothing, args...)
+    NvimClient(s, s, args...)
 end
 
 function nvim_spawn(args...)
     output, input, proc = readandwrite(`nvim --embed`)
-    NvimClient(input, output, proc, args...)
+    (NvimClient(input, output, args...), proc)
 end
 
 function nvim_child(args...)
@@ -54,7 +51,7 @@ function nvim_child(args...)
     redirect_stdout(debug)
     redirect_stderr(debug)
     redirect_stdin()
-    NvimClient(input, output, nothing, args...)
+    NvimClient(input, output, args...)
 end
 
 # this is probably not most efficient in the common case (no contention)

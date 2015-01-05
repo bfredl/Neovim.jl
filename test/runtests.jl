@@ -1,7 +1,7 @@
 using Neovim
 import Neovim: get_buffers, set_line, get_line, vim_eval, command, get_var
 import Neovim: on_notify, on_request
-nvim = nvim_spawn()
+nvim, proc = nvim_spawn()
 
 #test buffer
 buf = get_buffers(nvim)[1]
@@ -41,7 +41,7 @@ end
 
 #notification
 ref = RemoteRef()
-nvim = nvim_spawn(TestHandler(ref))
+nvim, proc = nvim_spawn(TestHandler(ref))
 command(nvim, "call rpcnotify($(nvim.channel_id), 'mymethod', 10, 20)")
 @assert take!(ref) == ("mymethod", {10, 20})
 
