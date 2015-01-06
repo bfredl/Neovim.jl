@@ -43,7 +43,7 @@ end
 ref = RemoteRef()
 nvim, proc = nvim_spawn(TestHandler(ref))
 command(nvim, "call rpcnotify($(nvim.channel_id), 'mymethod', 10, 20)")
-@assert take!(ref) == ("mymethod", {10, 20})
+@assert take!(ref) == ("mymethod", Any[10, 20])
 
 #request
 @assert vim_eval(nvim, "100+rpcrequest($(nvim.channel_id), 'do_stuff', 2, 3)") == 123
