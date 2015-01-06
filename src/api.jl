@@ -1,4 +1,5 @@
 # Generate low-level api from METADATA
+
 function _get_metadata()
     data = readall(`nvim --api-info`)
     return symbolize(unpack(data))
@@ -90,9 +91,10 @@ function build_function(f)
     #when array constructor non-concatenating, we could drop the Any
     arglist = :( Any[] )
     append!(arglist.args, args)
-    push!(body, :( send_request(c, $(Meta.quot(name)), $arglist)))
+    push!(body, :( res = send_request(c, $(Meta.quot(name)), $arglist)))
 
     #TODO: handle retvals typestable-wise
+    push!(body, :( retconvert(c, res) ))
 
     j_call = Expr(:call, shortname, j_args...)
     fun = Expr(:function, j_call, Expr(:block, body...) )

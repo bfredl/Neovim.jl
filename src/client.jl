@@ -72,8 +72,7 @@ function send_request(c::NvimClient, meth, args)
     if err !== nothing
         error(string(meth, ": ", bytestring(err[2])))
     end
-    #TODO: use METADATA to be type-stabler
-    retconvert(c,res)
+    res
 end
 
 function reply_error(c, serial, err)
