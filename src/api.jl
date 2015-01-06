@@ -18,11 +18,11 @@ const _functions = _metadata[:functions]
 # will break if the api starts using overloading
 const api_methods = [f[:name] => f for f in _functions]
 
-const typemap = (Symbol=>Type)[
+const typemap = @compat Dict{Symbol,Type}(
     :Integer => Integer,
     :Boolean => Bool,
     :String => Union(ByteString, Vector{Uint8}),
-]
+)
 
 abstract NvimObject
 # when upgrading to 0.4; use builtin typeconst

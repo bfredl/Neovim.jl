@@ -14,7 +14,7 @@ type NvimClient{S}
 end
 
 function NvimClient{S}(input::S, output::S, handler=DummyHandler())
-    c = NvimClient{S}(input, output, -1, 0, (Int=>RemoteRef)[])
+    c = NvimClient{S}(input, output, -1, 0, Dict{Int,RemoteRef}())
     c.reader = @async readloop(c,handler)
     c.channel_id, metadata = send_request(c, "vim_get_api_info", [])
     #println("CONNECTED $(c.channel_id)"); flush(STDOUT)
@@ -66,7 +66,7 @@ function send_request(c::NvimClient, meth, args)
     c.waiting[reqid] = res
     meth = string(meth)
 
-    _send(c, {REQUEST, reqid, meth, args})
+    _send(c, Any[REQUEST, reqid, meth, args])
     (err, res) = take!(res) #blocking
     # TODO: make these recoverable
     if err !== nothing
@@ -76,11 +76,11 @@ function send_request(c::NvimClient, meth, args)
 end
 
 function reply_error(c, serial, err)
-    _send(c, {RESPONSE, serial, err, nothing})
+    _send(c, Any[RESPONSE, serial, err, nothing])
 end
 
 function reply_result(c, serial, res)
-    _send(c, {RESPONSE, serial, nothing, res})
+    _send(c, Any[RESPONSE, serial, nothing, res])
 end
 
 # when overriding these, note that this runs in the reader task,

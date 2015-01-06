@@ -1,5 +1,6 @@
 module Neovim
 
+using Compat
 using MsgPack
 import MsgPack: pack, unpack
 
