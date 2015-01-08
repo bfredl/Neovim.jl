@@ -1,10 +1,14 @@
 # high-level interface and shorthands
 
-export cur_window, cur_buffer, cur_tabpage
-cur_window(c::NvimClient) = get_current_window(c)
-cur_buffer(c::NvimClient) = get_current_buffer(c)
-cur_tabpage(c::NvimClient) = get_current_tabpage(c)
+export current_window, current_buffer, current_tabpage, current_line, set_current, set_current_line
+current_window(c::NvimClient) = get_current_window(c)
+current_buffer(c::NvimClient) = get_current_buffer(c)
+current_tabpage(c::NvimClient) = get_current_tabpage(c)
+current_line(c::NvimClient) = get_current_line(c)
 
+set_current(o::Buffer) = set_current_buffer(o.client, o)
+set_current(o::Window) = set_current_window(o.client, o)
+set_current(o::Tabpage) = set_current_tabpage(o.client, o)
 
 # array interface for buffer
 Base.length(b::Buffer) = line_count(b)

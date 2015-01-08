@@ -1,21 +1,16 @@
 # mostly a proof-of-concept (more explicitly: a terrible hack) for the moment
 import Base: LineEdit, REPL
 using Neovim
-import Neovim: get_current_line, get_current_window, get_current_buffer
-import Neovim: get_cursor, set_cursor, set_line, command, input
+import Neovim: get_cursor, set_cursor, command, input
 
 type NvimReplState
     active::Bool
     nv::NvimClient
-    nbuf::Buffer
-    win::Window
     s::LineEdit.MIState
     rbuf::IOBuffer
     function NvimReplState()
         state = new(false)
         state.nv, proc = nvim_spawn(state)
-        state.nbuf = get_current_buffer(state.nv)
-        state.win = get_current_window(state.nv)
         state
     end
 end
@@ -25,7 +20,6 @@ function Neovim.on_notify(s::NvimReplState, nv, name, args)
         if name == "update"
             #done
         elseif name == "insert" 
-            input(nv, "\033")
             s.active = false
         end
     end
@@ -36,6 +30,7 @@ const channel = rstate.nv.channel_id
 
 command(rstate.nv, "au CursorMoved,TextChanged * call rpcnotify($channel, 'update')")
 command(rstate.nv, "au InsertEnter * call rpcnotify($channel, 'insert')")
+command(rstate.nv, "set ft=julia")
 
 
 const nvim_keymap = {
@@ -51,11 +46,15 @@ function update_screen()
     end
     nv = rstate.nv
     #FIXME: this is a terrible hack, use abstract_ui later
-    line = get_current_line(nv)
-    pos = get_cursor(rstate.win)[2]
+    code = current_buffer(nv)[:]
+    curline, curpos = get_cursor(current_window(nv))
     truncate(rstate.rbuf, 0)
-    write(rstate.rbuf, line)
-    seek(rstate.rbuf, pos)
+    write(rstate.rbuf, join(code, "\n"))
+    cpos = curpos
+    for i in 1:(curline-1)
+        cpos += length(code[i])+1
+    end
+    seek(rstate.rbuf, cpos)
     LineEdit.refresh_line(rstate.s)
 end
 
@@ -66,8 +65,27 @@ function nvim_normal(term, s, repl)
 
     buf_pos = position(rbuf)
     seek(rbuf, 0)
-    set_line(rstate.nbuf, 1, readline(rbuf))
-    set_cursor(rstate.win, Any[1, buf_pos])
+    cur_col = buf_pos
+    lines = ByteString[]
+    more = true
+    input(nv, "\033")
+    cursor = [0,0]
+    while more
+        line = readline(rbuf)
+        if length(line) > 0 && line[end] == '\n'
+            line = line[1:end-1]
+        else
+            more = false
+        end
+        push!(lines, line)
+        if 0 <= cur_col < length(line)+1
+            cursor = [length(lines), cur_col]
+        end
+        cur_col -= length(line)+1
+    end
+    current_buffer(nv)[:] = lines
+    set_cursor(current_window(nv), cursor)
+
     rstate.active = true
     while rstate.active
         char = read(term, Uint8)

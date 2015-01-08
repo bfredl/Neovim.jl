@@ -11,7 +11,7 @@ text = get_line(buf, 1)
 @assert text == "some text"
 
 #test high-level buffer interface
-buf = cur_buffer(nvim)
+buf = current_buffer(nvim)
 @assert isa(buf,Buffer)
 @assert buf[:] == ["some text"]
 @assert buf[1] == "some text"
@@ -25,7 +25,7 @@ buf[:] = ["alpha", "beta", "gamma"]
 
 buf[2] = "beta-ish"
 @assert buf[:] == ["alpha", "beta-ish", "gamma"]
-buf[2:3] = ["b","c","d"]
+buf[2:3] = ["b", "c", "d"]
 @assert buf[:] == ["alpha", "b", "c", "d"]
 buf[end-1:end-2] = ["boom"]
 @assert buf[:] == ["alpha", "b", "boom", "c", "d"]
