@@ -10,6 +10,37 @@ set_line(buf, 1, "some text")
 text = get_line(buf, 1)
 @assert text == "some text"
 
+#test high-level buffer interface
+buf = cur_buffer(nvim)
+@assert isa(buf,Buffer)
+@assert buf[:] == ["some text"]
+@assert buf[1] == "some text"
+
+buf[:] = ["alpha", "beta", "gamma"]
+@assert buf[:] == ["alpha", "beta", "gamma"]
+@assert buf[1:3] == ["alpha", "beta", "gamma"]
+@assert buf[2:3] == ["beta", "gamma"]
+@assert buf[end-1:end] == ["beta", "gamma"]
+@assert buf[end-1:2] == ["beta"]
+
+buf[2] = "beta-ish"
+@assert buf[:] == ["alpha", "beta-ish", "gamma"]
+buf[2:3] = ["b","c","d"]
+@assert buf[:] == ["alpha", "b", "c", "d"]
+buf[end-1:end-2] = ["boom"]
+@assert buf[:] == ["alpha", "b", "boom", "c", "d"]
+
+deleteat!(buf, 2)
+@assert buf[:] == ["alpha", "boom", "c", "d"]
+deleteat!(buf, 3:4)
+@assert buf[:] == ["alpha", "boom"]
+
+push!(buf, "the end")
+@assert buf[:] == ["alpha", "boom", "the end"]
+unshift!(buf, "stuff")
+@assert buf[:] == ["stuff", "alpha", "boom", "the end"]
+@assert length(buf) == 4
+
 #test eval
 @assert vim_eval(nvim, "2+2") == 4
 

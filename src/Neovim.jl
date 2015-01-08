@@ -9,7 +9,8 @@ export Buffer, Tabpage, Window
 export reply_result, reply_error
 
 include("client.jl")
-include("api.jl")
+include("api_gen.jl")
+include("interface.jl")
 
 # too inconvenient api to supply handler here?
 function nvim_connect(path::ByteString, args...)
