@@ -1,4 +1,8 @@
 # mostly a proof-of-concept (more explicitly: a terrible hack) for the moment
+# to activate, include() this file at the normal (LineEdit) REPL
+# Then, at any time, press Ctrl-O to edit in normal mode.
+# To be able to execute code and search history etc, going back to insert mode is neccesary.
+# For the moment, the first keypress after going to insert mode disappears sometimes.
 import Base: LineEdit, REPL
 using Neovim
 import Neovim: get_cursor, set_cursor, command, input
