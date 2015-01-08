@@ -1,8 +1,8 @@
 # mostly a proof-of-concept (more explicitly: a terrible hack) for the moment
 import Base: LineEdit, REPL
 using Neovim
-import Neovim: feedkeys, get_current_line, get_current_window, get_current_buffer
-import Neovim: get_cursor, set_cursor, set_line, command
+import Neovim: get_current_line, get_current_window, get_current_buffer
+import Neovim: get_cursor, set_cursor, set_line, command, input
 
 type NvimReplState
     active::Bool
@@ -25,7 +25,7 @@ function Neovim.on_notify(s::NvimReplState, nv, name, args)
         if name == "update"
             #done
         elseif name == "insert" 
-            feedkeys(nv, "\033", "", false)
+            input(nv, "\033")
             s.active = false
         end
     end
@@ -76,7 +76,7 @@ function nvim_normal(term, s, repl)
             break
         end
 
-        feedkeys(nv, bytestring([char]), "", true)
+        input(nv, bytestring([char]))
         #LineEdit.edit_insert
         if char == 1; rstate.active = false; end
         update_screen()
