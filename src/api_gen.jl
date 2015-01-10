@@ -24,40 +24,35 @@ const typemap = @compat Dict{Symbol,Type}(
     :String => Union(ByteString, Vector{Uint8}),
 )
 
-abstract NvimObject
-# when upgrading to 0.4; use builtin typeconst
-abstract _Typeid{N}
+# Types defined by the api
+immutable NvimApiObject{N} <: NvimObject
+    client::NvimClient
+    # TODO: use a fixarray or Uint64
+    hnd::Vector{Uint8}
+end
 
 for (name, info) in _types
     id = info[:id]
     @eval begin
-        immutable $(name) <: NvimObject
-            # TODO: use a fixarray or Uint64
-            client::NvimClient
-            hnd::Vector{Uint8}
-        end
-        typeid(::$(name)) = $id
-        nvimobject(c, ::Type{_Typeid{$id}}, hnd) = $(name)(c, hnd)
+        typealias $(name) NvimApiObject{$id}
         typemap[$(Meta.quot(name))] = $name
     end
 end
 
-=={T<:NvimObject}(a::T,b::T) = a.hnd == b.hnd
+=={N}(a::NvimApiObject{N},b::NvimApiObject{N}) = a.hnd == b.hnd
 
+NvimApiObject(c, e::Ext) = NvimApiObject{int(e.typecode)}(c, e.data)
 #Not really module-interface clean, I know...
-function MsgPack.pack(s, o::NvimObject)
-    tid = typeid(o)
-    MsgPack.pack(s, Ext(tid, o.hnd))
+function MsgPack.pack{N}(s, o::NvimApiObject{N})
+    MsgPack.pack(s, Ext(N, o.hnd))
 end
 
-#on 0.4 this will be NvimObject
-nvimobject(c, e::Ext) = nvimobject(c, _Typeid{int(e.typecode)}, e.data)
 
 # FIXME: the elephant in the room (i.e. handle &encoding)
 retconvert(c,val::Dict) = Dict{Any,Any}([(retconvert(c,k),retconvert(c,v)) for (k,v) in val])
 retconvert(c,val::Vector{Uint8}) = bytestring(val)
 retconvert(c,val::Vector) = [retconvert(c,v) for v in val]
-retconvert(c,val::Ext) = nvimobject(c, val)
+retconvert(c,val::Ext) = NvimApiObject(c, val)
 retconvert(c,val) = val
 
 

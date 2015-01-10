@@ -2,7 +2,7 @@ const REQUEST = 0
 const RESPONSE = 1
 const NOTIFICATION = 2
 
-type NvimClient{S}
+type NvimClient{S} <: NvimObject
     input::S #input to nvim
     output::S
 

@@ -8,6 +8,9 @@ export NvimClient, nvim_connect, nvim_spawn, nvim_child
 export Buffer, Tabpage, Window
 export reply_result, reply_error
 
+# types that have api methods (nvim itself + api defined types)
+abstract NvimObject
+
 include("client.jl")
 include("api_gen.jl")
 include("interface.jl")
