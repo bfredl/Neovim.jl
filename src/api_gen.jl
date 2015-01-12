@@ -16,7 +16,7 @@ const _types = _metadata[:types]
 const _functions = _metadata[:functions]
 
 # will break if the api starts using overloading
-const api_methods = [f[:name] => f for f in _functions]
+const api_methods = (Symbol=>Any)[f[:name] => f for f in _functions]
 
 const typemap = @compat Dict{Symbol,Type}(
     :Integer => Integer,
@@ -31,11 +31,13 @@ immutable NvimApiObject{N} <: NvimObject
     hnd::Vector{Uint8}
 end
 
+api_prefix{T<:NvimClient}(::Type{T}) = :vim_
 for (name, info) in _types
     id = info[:id]
     @eval begin
         typealias $(name) NvimApiObject{$id}
         typemap[$(Meta.quot(name))] = $name
+        api_prefix(::Type{$name}) = $(string(lowercase(string(name)), :_))
     end
 end
 
@@ -55,8 +57,28 @@ retconvert(c,val::Vector) = [retconvert(c,v) for v in val]
 retconvert(c,val::Ext) = NvimApiObject(c, val)
 retconvert(c,val) = val
 
+export api_call #TEMP
+stagedfunction api_call{M}(::Type{Val{M}}, recv::NvimObject, args...)
+    @assert (isa(M,Symbol))
+    name = symbol(string(api_prefix(recv),M))
+    data = api_methods[name]
+    Meta.quot(name)
+    body = Any[]
+    if recv <: NvimClient
+        push!(body, :(args = Any[args...]))
+        push!(body, :(c = recv))
+    else
+        push!(body, :(args = Any[recv, args...]))
+        push!(body, :(c = recv.client))
+    end
+    push!(body, :( res = send_request(c, $(Meta.quot(name)), args)))
+    push!(body, :( retconvert(c, res) ))
+    res = Expr(:block, body...)
+    println(res)
+    res
+end
 
-# a stagedfunction will probably be simpler and better
+
 function build_function(f)
     name = f[:name]
     params = f[:parameters]
