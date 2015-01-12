@@ -22,6 +22,7 @@ const typemap = @compat Dict{Symbol,Type}(
     :Integer => Integer,
     :Boolean => Bool,
     :String => Union(ByteString, Vector{Uint8}),
+    :Object => Any
 )
 
 # Types defined by the api
@@ -57,26 +58,65 @@ retconvert(c,val::Vector) = [retconvert(c,v) for v in val]
 retconvert(c,val::Ext) = NvimApiObject(c, val)
 retconvert(c,val) = val
 
-export api_call #TEMP
+export api_call, @nvcall #TEMP
 stagedfunction api_call{M}(::Type{Val{M}}, recv::NvimObject, args...)
     @assert (isa(M,Symbol))
     name = symbol(string(api_prefix(recv),M))
     data = api_methods[name]
+    params, rettype = data[:parameters], data[:return_type]
     Meta.quot(name)
     body = Any[]
+    arglist = :( Any[] )
     if recv <: NvimClient
-        push!(body, :(args = Any[args...]))
         push!(body, :(c = recv))
     else
-        push!(body, :(args = Any[recv, args...]))
+        push!(arglist.args, :(recv))
         push!(body, :(c = recv.client))
+        params = params[2:end]
     end
-    push!(body, :( res = send_request(c, $(Meta.quot(name)), args)))
-    push!(body, :( retconvert(c, res) ))
+    for (i,p) in enumerate(params)
+        #this is probably too restrictive sometimes,
+        # use convert for some types (sequences)?
+        t = get(typemap, p[1], Any)
+        #FIXME: the err msg this generates is not so helpful
+        push!(arglist.args, :( args[$i]::($t) ))
+    end
+
+    push!(body, :( res = send_request(c, $(Meta.quot(name)), $arglist)))
+
+    if rettype == :String
+        push!(body, :(bytestring(res)))
+    elseif rettype == symbol("ArrayOf(String)")
+        push!(body, :(ByteString[bytestring(r) for r in res] ))
+    #FIXME: the rest of the ArrayOf should be handled systematically
+    elseif match(r"ArrayOf\(Integer(,[0-9]+)?\)", string(rettype)) != nothing
+        push!(body, :(Int[res...] ))
+    else
+        typ = get(typemap, rettype, Any)
+        if typ == Any
+            push!(body, :( retconvert(c, res) ))
+        elseif typ <: NvimApiObject
+            push!(body, :( NvimApiObject(c, res)::$typ))
+        else
+            push!(body, :(res::$typ))
+        end
+    end
     res = Expr(:block, body...)
     println(res)
     res
 end
+macro nvcall(expr)
+    @assert expr.head == :call
+    method = expr.args[1]
+    #NB: doesn't support kwargs
+    newexpr = :(api_call(Val{$(Meta.quot(method))}))
+    #this shouldn't be necessary:
+    for arg in expr.args[2:end]
+        push!(newexpr.args, esc(arg))
+    end
+    newexpr
+end
+
 
 
 function build_function(f)
