@@ -4,7 +4,7 @@ using Compat
 using MsgPack
 import MsgPack: pack, unpack
 
-export NvimClient, nvim_connect, nvim_spawn, nvim_child
+export NvimClient, nvim_connect, nvim_env, nvim_spawn, nvim_child
 export Buffer, Tabpage, Window
 export reply_result, reply_error
 
@@ -20,6 +20,8 @@ function nvim_connect(path::ByteString, args...)
     s = connect(path)
     NvimClient(s, s, args...)
 end
+
+nvim_env(args...) = nvim_connect(ENV["NVIM_LISTEN_ADDRESS"], args...)
 
 function nvim_spawn(args...)
     output, input, proc = readandwrite(`nvim --embed`)

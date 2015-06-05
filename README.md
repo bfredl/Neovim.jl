@@ -13,7 +13,9 @@ or connecting to an external instance:
 ```
 nvim = nvim_connect("/socket/address")
 ```
-(this address can be found by `:echo $NVIM_LISTEN_ADRESS` in nvim)
+(this address can be found by `:echo $NVIM_LISTEN_ADDRESS` in nvim)
+
+As a shortcut, `nvim = nvim_env()` will use the address in `$NVIM_LISTEN_ADDRESS`. This is useful to connect to the "parent" nvim instance when running the Julia REPL in a nvim terminal window.
 
 All API methods defined in metadata is defined as corresponding julia functions on the `Neovim` module, except that the `vim_`/`buffer_` prefix is dropped (as the reciever type is identified by the first argument anyway), except for `vim_eval` as `eval` is not overloadable. For instance:
 ```
