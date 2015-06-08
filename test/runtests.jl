@@ -1,3 +1,5 @@
+using Base.Test
+
 using Neovim
 import Neovim: get_buffers, set_line, get_line, vim_eval, command, get_var
 import Neovim: on_notify, on_request
@@ -18,10 +20,31 @@ buf = current_buffer(nvim)
 
 buf[:] = ["alpha", "beta", "gamma"]
 @assert buf[:] == ["alpha", "beta", "gamma"]
+@assert buf[1] == "alpha"
 @assert buf[1:3] == ["alpha", "beta", "gamma"]
-@assert buf[2:3] == ["beta", "gamma"]
+@assert buf[1:1] == ["alpha"]
 @assert buf[end-1:end] == ["beta", "gamma"]
+@assert buf[1+end-1:end] == ["gamma"]
+@assert buf[end-1+1:1+end-1] == ["gamma"]
 @assert buf[end-1:2] == ["beta"]
+@assert buf[end+1-1] == "gamma"
+@assert buf[1+end-1] == "gamma"
+@assert buf[2:1] == []
+@assert buf[1:0] == []
+
+@test_throws BoundsError buf[0]
+@test_throws BoundsError buf[-1]
+@test_throws BoundsError buf[end+1]
+@test_throws BoundsError buf[-1:1]
+@test_throws BoundsError buf[0:1]
+@test_throws BoundsError buf[-1:0]
+@test_throws BoundsError buf[end+1:1]
+@test_throws BoundsError buf[1:end+1]
+@test_throws BoundsError buf[1:1+end]
+@test_throws BoundsError buf[1+end:1]
+@test_throws BoundsError buf[end-1:end+1]
+@test_throws BoundsError buf[end:end+1]
+@test_throws BoundsError buf[end+1:end+1]
 
 buf[2] = "beta-ish"
 @assert buf[:] == ["alpha", "beta-ish", "gamma"]
