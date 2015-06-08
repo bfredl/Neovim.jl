@@ -46,15 +46,33 @@ buf[:] = ["alpha", "beta", "gamma"]
 @test_throws BoundsError buf[end:end+1]
 @test_throws BoundsError buf[end+1:end+1]
 
-buf[2] = "beta-ish"
+@assert (buf[2] = "beta-ish") == "beta-ish"
 @assert buf[:] == ["alpha", "beta-ish", "gamma"]
-buf[2:3] = ["b", "c", "d"]
+@assert (buf[end] = "gamma-ish") == "gamma-ish"
+@assert buf[:] == ["alpha", "beta-ish", "gamma-ish"]
+@assert (buf[2:3] = ["b", "c", "d"]) == ["b", "c", "d"]
 @assert buf[:] == ["alpha", "b", "c", "d"]
-buf[end-1:end-2] = ["boom"]
+@assert (buf[end-1:end-2] = ["boom"]) == ["boom"]
 @assert buf[:] == ["alpha", "b", "boom", "c", "d"]
+@assert (buf[end-1:1+end-2] = ".") == "."
+@assert buf[:] == ["alpha", "b", "boom", ".", "d"]
+
+@test_throws BoundsError buf[0] = "twas"
+@test_throws BoundsError buf[-1] = "brillyg"
+@test_throws BoundsError buf[end+1] = "and"
+@test_throws BoundsError buf[-1:1] = "the"
+@test_throws BoundsError buf[0:1] = "slythy"
+@test_throws BoundsError buf[-1:0] = "toves"
+@test_throws BoundsError buf[end+1:1] = "did"
+@test_throws BoundsError buf[1:end+1] = "gyre"
+@test_throws BoundsError buf[1:1+end] = "and"
+@test_throws BoundsError buf[1+end:1] = "gymble"
+@test_throws BoundsError buf[end-1:end+1] = "in"
+@test_throws BoundsError buf[end:end+1] = "the"
+@test_throws BoundsError buf[end+1:end+1] = "wabe"
 
 deleteat!(buf, 2)
-@assert buf[:] == ["alpha", "boom", "c", "d"]
+@assert buf[:] == ["alpha", "boom", ".", "d"]
 deleteat!(buf, 3:4)
 @assert buf[:] == ["alpha", "boom"]
 
