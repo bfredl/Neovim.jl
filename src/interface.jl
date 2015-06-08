@@ -11,39 +11,31 @@ set_current(o::Window) = set_current_window(o.client, o)
 set_current(o::Tabpage) = set_current_tabpage(o.client, o)
 
 # array interface for buffer
-abstract LineIndex
-immutable EndRelIndex <: LineIndex i::Int end
-immutable OverflowIndex <: LineIndex i::Int end
 
-abstract LineRange
-immutable CappedRange <: LineRange
+# index relative end ( -1 is last element)
+immutable EndRelIndex
+    i::Int
+end
+
+vimindex(a::Integer) = a > 0 ? a - 1 : throw(BoundsError())
+vimindex(a::EndRelIndex) = a.i < 0 ? a.i : throw(BoundsError())
+
+# range where indices already are converted to api indicies
+immutable CappedRange
     start::Int
     stop::Int
-end
-immutable OverflowRange <: LineRange
-    start::Union(Integer, OverflowIndex)
-    stop::Union(Integer, OverflowIndex)
+    CappedRange(a,b) = new(vimindex(a),vimindex(b))
 end
 
 Base.length(b::Buffer) = line_count(b)
 Base.endof(b::Buffer) = EndRelIndex(-1)
 
--(a::LineIndex, b::Integer) = (a.i - b < 0 ? EndRelIndex : OverflowIndex)(a.i - b)
-+(a::LineIndex, b::Integer) = (a.i + b < 0 ? EndRelIndex : OverflowIndex)(a.i + b)
-+(a::Integer, b::LineIndex) = (a + b.i < 0 ? EndRelIndex : OverflowIndex)(a + b.i)
-+(a::LineIndex, b::LineIndex) = (a.i + b.i < 0 ? EndRelIndex : OverflowIndex)(a.i + b.i)
+-(a::EndRelIndex, b::Integer) = EndRelIndex(a.i - b)
++(a::EndRelIndex, b::Integer) = EndRelIndex(a.i + b)
++(a::Integer, b::EndRelIndex) = EndRelIndex(a + b.i)
 
-Base.colon(a::Integer, b::EndRelIndex) =
-    a > 0 ? CappedRange(a - 1, b.i) : OverflowRange(OverflowIndex(a), b.i)
-Base.colon(a::EndRelIndex, b::Integer) =
-    b > 0 ? CappedRange(a.i, b - 1) : OverflowRange(a.i, OverflowIndex(b))
-Base.colon(a::EndRelIndex, b::EndRelIndex) = CappedRange(a.i, b.i)
-
-Base.colon(a::Integer, b::OverflowIndex) = OverflowRange(a - 1, b)
-Base.colon(a::OverflowIndex, b::Integer) = OverflowRange(a, b - 1)
-Base.colon(a::OverflowIndex, b::EndRelIndex) = OverflowRange(a, b.i)
-Base.colon(a::EndRelIndex, b::OverflowIndex) = OverflowRange(a.i, b)
-Base.colon(a::OverflowIndex, b::OverflowIndex) = OverflowRange(a, b)
+Base.colon(a::Integer, b::EndRelIndex) = CappedRange(a, b)
+Base.colon(a::EndRelIndex, b::Union(Integer, EndRelIndex)) = CappedRange(a, b)
 
 Base.getindex(b::Buffer, r::CappedRange) = get_line_slice(b, r.start, r.stop, true, true)
 function Base.getindex(b::Buffer, i::Union(Integer, EndRelIndex))
@@ -51,12 +43,12 @@ function Base.getindex(b::Buffer, i::Union(Integer, EndRelIndex))
     length(line) > 0 ? line[1] : ""
 end
 function Base.getindex{T<:Integer}(b::Buffer, r::UnitRange{T})
-    if (r.start > r.stop) Array(ByteString, 0)
-    elseif (r.start < 1 || r.stop < 1) throw(BoundsError())
-    else b[CappedRange(r.start - 1, r.stop - 1)]
+    if (r.start > r.stop)
+        Array(ByteString, 0)
+    else
+        b[CappedRange(r.start, r.stop)]
     end
 end
-Base.getindex(b::Buffer, i::Union(OverflowIndex, OverflowRange)) = throw(BoundsError())
 
 Base.setindex!(b::Buffer, lines::Array, r::CappedRange) =
     set_line_slice(b, r.start, r.stop, true, true, lines)
@@ -68,11 +60,8 @@ function Base.setindex!{T<:Integer}(b::Buffer, s::String, r::UnitRange{T})
     ndests <= 0 ? s : b[r] = fill(s, ndests)
 end
 function Base.setindex!{T<:Integer}(b::Buffer, lines::Array, r::UnitRange{T})
-    if (r.start < 1 || r.stop < 1) throw(BoundsError())
-    else b[CappedRange(r.start - 1, r.stop - 1)] = lines
-    end
+    b[CappedRange(r.start, r.stop)] = lines
 end
-Base.setindex!(b::Buffer, s::String, i::Union(OverflowIndex, OverflowRange)) = throw(BoundsError())
 
 Base.push!(b::Buffer, items...) = (insert(b, -1, [items...]); b)
 Base.append!(b::Buffer, items) = (insert(b, -1, items); b)
