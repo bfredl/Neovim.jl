@@ -82,6 +82,13 @@ unshift!(buf, "stuff")
 @assert buf[:] == ["stuff", "alpha", "boom", "the end"]
 @assert length(buf) == 4
 
+#test high-level cursor api
+win = current_window(nvim)
+cursor(win, [1, 1])
+@assert cursor(win) == [1, 1]
+cursor(win, [4, 2])
+@assert cursor(win) == [4, 2]
+
 #test eval
 @assert vim_eval(nvim, "2+2") == 4
 

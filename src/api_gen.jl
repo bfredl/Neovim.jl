@@ -22,7 +22,17 @@ const typemap = @compat Dict{Symbol,Type}(
     :Integer => Integer,
     :Boolean => Bool,
     :String => Union(ByteString, Vector{Uint8}),
+    :ArrayOf_Integer => Array{Int, 1}
 )
+
+function maptype(s::Symbol)
+    arrayof = match(Regex("^ArrayOf\\((\\w+),"), string(s))
+    if arrayof != nothing
+        s = symbol("ArrayOf_" * arrayof.captures[1])
+    end
+
+    get(typemap, s, Any)
+end
 
 # Types defined by the api
 immutable NvimApiObject{N} <: NvimObject
@@ -67,13 +77,13 @@ function build_function(f)
     if shortname == :eval; shortname = :vim_eval; end
 
     body = Any[]
-    args = Any[ symbol(string("a_",p[2])) for p in params]
+    args = Any[symbol(string("a_",p[2])) for p in params]
     j_args = Any[]
 
     for (i,p) in enumerate(params)
         #this is probably too restrictive sometimes,
         # use convert for some types (sequences)?
-        t = get(typemap, p[1], Any)
+        t = maptype(p[1])
         push!(j_args, :( $(args[i])::($t) ))
     end
 
