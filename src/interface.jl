@@ -58,6 +58,22 @@ function Base.getindex{T<:Integer}(b::Buffer, r::UnitRange{T})
 end
 Base.getindex(b::Buffer, i::Union(OverflowIndex, OverflowRange)) = throw(BoundsError())
 
+Base.setindex!(b::Buffer, lines::Array, r::CappedRange) =
+    set_line_slice(b, r.start, r.stop, true, true, lines)
+Base.setindex!(b::Buffer, s::String, i::Integer) = b[i:i] = [s]
+Base.setindex!(b::Buffer, s::String, i::EndRelIndex) = b[i:i] = [s]
+Base.setindex!(b::Buffer, s::String, r::CappedRange) = b[r] = [s]
+function Base.setindex!{T<:Integer}(b::Buffer, s::String, r::UnitRange{T})
+    ndests = r.stop - r.start + 1
+    ndests <= 0 ? s : b[r] = fill(s, ndests)
+end
+function Base.setindex!{T<:Integer}(b::Buffer, lines::Array, r::UnitRange{T})
+    if (r.start < 1 || r.stop < 1) throw(BoundsError())
+    else b[CappedRange(r.start - 1, r.stop - 1)] = lines
+    end
+end
+Base.setindex!(b::Buffer, s::String, i::Union(OverflowIndex, OverflowRange)) = throw(BoundsError())
+
 Base.push!(b::Buffer, items...) = (insert(b, -1, [items...]); b)
 Base.append!(b::Buffer, items) = (insert(b, -1, items); b)
 Base.unshift!(b::Buffer, items...) = (set_line_slice(b, 0, 0, true, false, [items...]); b)
