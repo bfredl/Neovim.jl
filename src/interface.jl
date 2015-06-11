@@ -51,7 +51,7 @@ function Base.getindex{T<:Integer}(b::Buffer, r::UnitRange{T})
 end
 
 Base.setindex!(b::Buffer, lines::Array, r::CappedRange) =
-    set_line_slice(b, r.start, r.stop, true, true, lines)
+    set_line_slice(b, r.start, r.stop, true, true, convert(Array{ASCIIString, 1}, lines))
 Base.setindex!(b::Buffer, s::String, i::Integer) = b[i:i] = [s]
 Base.setindex!(b::Buffer, s::String, i::EndRelIndex) = b[i:i] = [s]
 Base.setindex!(b::Buffer, s::String, r::CappedRange) = b[r] = [s]
