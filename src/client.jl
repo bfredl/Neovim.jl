@@ -36,7 +36,7 @@ function readloop(c::NvimClient, handler)
             put!(ref, (msg[3], msg[4]))
         elseif kind == NOTIFICATION
             try
-                on_notify(handler, c, bytestring(msg[2]), retconvert(c, :Object, msg[3]))
+                on_notify(handler, c, bytestring(msg[2]), retconvert(Any, c, msg[3]))
             catch err
                 println("Excetion caught in notification handler")
                 println(err)
@@ -44,7 +44,7 @@ function readloop(c::NvimClient, handler)
         elseif kind == REQUEST
             serial = msg[2]::Int
             try
-                on_request(handler, c, serial, bytestring(msg[3]), retconvert(c, :Object, msg[4]))
+                on_request(handler, c, serial, bytestring(msg[3]), retconvert(Any, c, msg[4]))
             catch err
                 println("Excetion caught in request handler")
                 println(err)
