@@ -7,16 +7,22 @@ immutable NvimApiObject{N} <: NvimObject
     hnd::Vector{Uint8}
 end
 
-function _get_metadata()
-    data = readall(`nvim --api-info`)
-    return symbolize(unpack(data))
-end
+=={N}(a::NvimApiObject{N},b::NvimApiObject{N}) = a.hnd == b.hnd
+
+NvimApiObject(c, e::Ext) = NvimApiObject{int(e.typecode)}(c, e.data)
+#Not really module-interface clean, I know...
+MsgPack.pack{N}(s, o::NvimApiObject{N}) = MsgPack.pack(s, Ext(N, o.hnd))
 
 symbolize(val::Dict) = Dict{Symbol,Any}([(symbolize(k),symbolize(v)) for (k,v) in val])
 symbolize(val::Vector{Uint8}) = symbol(bytestring(val))
 symbolize(val::ByteString) = symbol(val)
 symbolize(val::Vector) = [symbolize(v) for v in val]
 symbolize(val) = val
+
+function _get_metadata()
+    data = readall(`nvim --api-info`)
+    return symbolize(unpack(data))
+end
 
 const _metadata = _get_metadata()
 const _types = _metadata[:types]
@@ -25,11 +31,24 @@ const _functions = _metadata[:functions]
 # will break if the api starts using overloading
 const api_methods = [f[:name] => f for f in _functions]
 
+typealias Bytes Union(ByteString, Vector{Uint8})
 const typemap = @compat Dict{Symbol,Type}(
     :Integer => Integer,
     :Boolean => Bool,
-    :String => Union(ByteString, Vector{Uint8})
+    :String => Bytes,
+    :Array => Vector{Any},
+    :Dictionary => Dict,
+    :Object => Any,
+    :void => Nothing
 )
+
+for (name, info) in _types
+    id = info[:id]
+    @eval begin
+        typealias $(name) NvimApiObject{$id}
+        typemap[$(Meta.quot(name))] = $name
+    end
+end
 
 function parsetype(t::Symbol)
     components = split(rstrip(string(t), ')'), '(')
@@ -45,12 +64,7 @@ function gettype(t::Symbol)
     elseif top == :ArrayOf
         tcontains = gettype(symbol(params[1]))
         if length(params) == 1
-            if isa(tcontains, UnionType)
-                tarr = Union([Array{t, 1} for t in tcontains.types]...)
-            else
-                tarr = Array{tcontains, 1}
-            end
-            Union(tarr, Array{None, 1})
+            Vector{tcontains}
         else
             @compat Tuple{fill(tcontains, int(params[2]))...}
         end
@@ -59,50 +73,31 @@ function gettype(t::Symbol)
     end
 end
 
-convertdict(val::Dict) = Dict{ByteString,Any}([(convertdict(k),convertdict(v)) for (k,v) in val])
-convertdict(val::Union(ByteString, Vector{Uint8})) = bytestring(val)
-convertdict(val::Vector) = [convertdict(v) for v in val]
-convertdict(val) = val
+# fake covariant Vectors
+checkarg{T}(::Type{Vector{T}}, val::Vector{T}) = val
+checkarg{T}(::Type{Vector{T}}, val::Vector) = convert(Vector{T}, val)
+# I'm pretty sure julia somehow can express subdiagnal dispatch,
+# but implement the cases manually for now
+checkarg{T<:Bytes}(::Type{Vector{Bytes}}, val::Vector{T}) = val
+checkarg{T<:Integer}(::Type{Vector{Integer}}, val::Vector{T}) = val
+# this must be specialcased though
+checkarg(::Type{Vector{Integer}}, val::Vector{Uint8}) = Int[val...]
+# tuples are covariant, so no problem
+checkarg{T}(::Type{Vector{T}}, val::(@compat Tuple{Vararg{T}})) = [val...]
 
-function retconvert(c::NvimClient, t::Symbol, v=:void)
-    ttop, tparams = parsetype(t)
+retconvert(typ::Union(Type{Any},Type{Bytes}), c, val::Union(ByteString, Vector{Uint8})) = bytestring(val)
+retconvert(typ::Union(Type{Any},Type{Bool}), c, val::Bool) = val
+retconvert(typ::Union(Type{Any},Type{Integer}), c, val::Integer) = @compat Int(val)
+retconvert(typ::Union(Type{Any},Type{Nothing}), c, val::Nothing) = nothing
+retconvert(typ::Union(Type{Any},Type{Dict}), c, val::Dict) = Dict{ByteString,Any}([(bytestring(k),retconvert(Any,c,v)) for (k,v) in val])
+# we assume Msgpack only generates untyped arrays
+retconvert{T}(typ::Type{Vector{T}}, c, val::Vector) = [retconvert(T,c,v) for v in val]
+retconvert(typ::Type{Any}, c, val::Vector) = Any[retconvert(Any,c,v) for v in val]
+# assume only "basic" types
+retconvert{T<:Tuple}(typ::Type{T}, c, val::Vector) = convert(T, val)
 
-    if ttop == :ArrayOf
-        tcontains = symbol(tparams[1])
-        if length(tparams) == 1
-            map(x->retconvert(c, tcontains, x), v)
-        else
-            ntuple(i->retconvert(c, tcontains, v[i]), int(tparams[2]))
-        end
-    elseif ttop == :Array || ttop == :Boolean || ttop == :Integer
-        v
-    elseif ttop == :Dictionary
-        convertdict(v)
-    elseif ttop == :Object
-        v
-    elseif ttop == :String
-        bytestring(v)
-    elseif ttop == :void
-        nothing
-    else eval(ttop) <: NvimApiObject
-        NvimApiObject(c, v)
-    end
-end
-
-for (name, info) in _types
-    id = info[:id]
-    @eval begin
-        typealias $(name) NvimApiObject{$id}
-        typemap[$(Meta.quot(name))] = $name
-    end
-end
-
-=={N}(a::NvimApiObject{N},b::NvimApiObject{N}) = a.hnd == b.hnd
-
-NvimApiObject(c, e::Ext) = NvimApiObject{int(e.typecode)}(c, e.data)
-#Not really module-interface clean, I know...
-MsgPack.pack{N}(s, o::NvimApiObject{N}) = MsgPack.pack(s, Ext(N, o.hnd))
-MsgPack.pack(s, t::Tuple) = MsgPack.pack(s, [v for v in t])
+retconvert{N}(typ::Type{NvimApiObject{N}}, c, val::Ext) = NvimApiObject(c, val)::NvimApiObject{N}
+#retconvert{T}(typ::Type{T}, c, val::T) = val
 
 # a stagedfunction will probably be simpler and better
 function build_function(f)
@@ -123,13 +118,21 @@ function build_function(f)
         #this is probably too restrictive sometimes,
         # use convert for some types (sequences)?
         t = gettype(p[1])
-        push!(j_args, :( $(args[i])::($t) ))
+        # if type is an array
+        # we will allow any Vector argument
+        # and dynamically check if not a subtype
+        erased = t
+        if t <: Vector
+            erased = Union(Vector, @compat Tuple{Vararg{eltype(t)}})
+            push!(body, :( $(args[i]) = checkarg($t, $(args[i]))))
+        end
+        push!(j_args, :( $(args[i])::($erased) ))
     end
 
     if reciever == "vim"
         unshift!(j_args, :( c::NvimClient))
     else
-        push!(body, :( c = ($(args[1])).client ) )
+        unshift!(body, :( c = ($(args[1])).client ) )
     end
 
     #when array constructor non-concatenating, we could drop the Any
@@ -137,7 +140,10 @@ function build_function(f)
     append!(arglist.args, args)
     push!(body, :( res = send_request(c, $(Meta.quot(name)), $arglist)))
 
-    push!(body, :( retconvert(c, $(Meta.quot(tret)), res) ))
+    # "representative" type, not neccessarily the one
+    # retconvert will assert
+    typ = gettype(tret)
+    push!(body, :( retconvert($typ, c, res) ))
 
     j_call = Expr(:call, shortname, j_args...)
     fun = Expr(:function, j_call, Expr(:block, body...) )
