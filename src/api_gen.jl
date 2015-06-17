@@ -95,8 +95,11 @@ retconvert(typ::Union(Type{Any},Type{Dict}), c, val::Dict) = Dict{ByteString,Any
 # we assume Msgpack only generates untyped arrays
 retconvert{T}(typ::Type{Vector{T}}, c, val::Vector) = [retconvert(T,c,v) for v in val]
 retconvert(typ::Type{Any}, c, val::Vector) = Any[retconvert(Any,c,v) for v in val]
-# assume only "basic" types
-retconvert{T<:Tuple}(typ::Type{T}, c, val::Vector) = tuple(val...)
+
+# this is not really strict enough
+#retconvert{T<:Tuple}(typ::Type{T}, c, val::Vector) = tuple(val...)::T
+# handle the only case manually for now
+retconvert(::Type{@compat Tuple{Integer,Integer}}, c, val::Vector) = (@compat Int(val[1]),@compat Int(val[2]))
 
 retconvert{N}(typ::Type{NvimApiObject{N}}, c, val::Ext) = NvimApiObject(c, val)::NvimApiObject{N}
 #retconvert{T}(typ::Type{T}, c, val::T) = val
