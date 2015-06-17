@@ -86,10 +86,12 @@ checkarg(::Type{Vector{Integer}}, val::Vector{Uint8}) = Int[val...]
 checkarg{T}(::Type{Vector{T}}, val::(@compat Tuple{Vararg{T}})) = [val...]
 
 retconvert(typ::Union(Type{Any},Type{Bytes}), c, val::Union(ByteString, Vector{Uint8})) = bytestring(val)
+# needed for disambiguation
 retconvert(typ::Type{Any}, c, val::Vector{Uint8}) = bytestring(val)
-retconvert(typ::Type{Bool}, c, val::Bool) = val
-retconvert(typ::Type{Any}, c, val::Bool) = val
-retconvert(typ::Union(Type{Any},Type{Integer}), c, val::Integer) = @compat Int(val)
+retconvert(typ::Union(Type{Any}, Type{Bool}), c, val::Bool) = val
+# this assumes the current unpack implementation in MsgPack,
+# where all int types get promoted to 64 bit
+retconvert(typ::Union(Type{Any},Type{Integer}), c, val::Int64) = val
 retconvert(typ::Union(Type{Any},Type{Nothing}), c, val::Nothing) = nothing
 retconvert(typ::Union(Type{Any},Type{Dict}), c, val::Dict) = Dict{ByteString,Any}([(bytestring(k),retconvert(Any,c,v)) for (k,v) in val])
 # we assume Msgpack only generates untyped arrays
