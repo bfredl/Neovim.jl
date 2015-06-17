@@ -1,4 +1,7 @@
 using Base.Test
+import Base: return_types
+
+using Compat
 
 using Neovim
 import Neovim: get_buffers, set_line, get_line, vim_eval, command, get_var
@@ -119,4 +122,15 @@ command(nvim, "call rpcnotify($(nvim.channel_id), 'mymethod', 10, 20)")
 
 #request
 @assert vim_eval(nvim, "100+rpcrequest($(nvim.channel_id), 'do_stuff', 2, 3)") == 123
+
+# type stability of generated functions
+@assert return_types(Neovim.get_buffers, (NvimClient,)) == [Vector{Buffer}]
+@assert return_types(Neovim.command, (NvimClient,UTF8String)) == [Nothing]
+@assert return_types(Neovim.get_current_line, (NvimClient,)) == [ByteString]
+@assert return_types(Neovim.is_valid, (Tabpage,)) == [Bool]
+@assert return_types(Neovim.get_height, (Window,)) == [Int]
+@assert return_types(Neovim.get_mark, (Buffer,ASCIIString)) == [@compat Tuple{Int,Int}]
+
+#as ByteString isn't concrete anyway, this doesn't give that much really
+#@assert return_types(Neovim.get_line_slice, (Buffer,Int,Int,Bool,Bool)) == [Vector{TypeVar(:_,None,ByteString)}]
 
