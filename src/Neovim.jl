@@ -4,7 +4,7 @@ using Compat
 using MsgPack
 import MsgPack: pack, unpack
 
-export NvimClient, nvim_connect, nvim_env, nvim_spawn, nvim_child
+export NvimClient, nvim_connect, nvim_env, nvim_spawn, nvim_child, start_host
 export Buffer, Tabpage, Window
 export reply_result, reply_error
 
@@ -14,6 +14,7 @@ abstract NvimObject
 include("client.jl")
 include("api_gen.jl")
 include("interface.jl")
+include("plugin_host.jl")
 
 # too inconvenient api to supply handler here?
 function nvim_connect(path::ByteString, args...)

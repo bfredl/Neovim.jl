@@ -27,7 +27,7 @@ end
 # this is probably not most efficient in the common case (no contention)
 # but it's the simplest way to assure task-safety of reading from the stream
 function readloop(c::NvimClient, handler)
-    while true
+    while !eof(c.output)
         msg = unpack(c.output)
         kind = msg[1]::Int
         if kind == RESPONSE
