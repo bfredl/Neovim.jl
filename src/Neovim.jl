@@ -31,10 +31,16 @@ end
 function nvim_child(args...)
     # make stdio private. Reversed since from nvim's perspective
     input, output = STDOUT, STDIN
-    debug = open("NEOVIM_JL_DEBUG","w") # TODO: make env var
-    redirect_stdout(debug)
-    redirect_stderr(debug)
+    if haskey(ENV, "NEOVIM_JL_DEBUG")
+        debug = open(ENV["NEOVIM_JL_DEBUG"], "w")
+        redirect_stdout(debug)
+        redirect_stderr(debug)
+    else
+        redirect_stdout()
+        redirect_stderr()
+    end
     redirect_stdin()
+
     NvimClient(input, output, args...)
 end
 
