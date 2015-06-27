@@ -1,18 +1,15 @@
-start_host() = try wait(nvim_child(HostHandler()).reader) end
+start_host() = try wait(nvim_child(HostHandler())) end
 
 immutable HostHandler
-    loaded_plugins::Set{String} # plugin file paths
-    proc_callbacks::Dict{String, Function}
-end
-
-function HostHandler()
-    HostHandler(Set{String}(), Dict{String, Function}())
+    specs::Dict{ByteString, Any} # plugin file paths
+    proc_callbacks::Dict{ByteString, Function}
+    HostHandler() = new(Dict{ByteString, Any}(), Dict{ByteString, Function}())
 end
 
 # names/methods for invoked cmds/fns have the form:
 #   <file path>:(command|function|autocmd):<procedure name>
 function on_notify(h::HostHandler, c, name::String, args::Vector{Any})
-    proc = require_plug(h, name)
+    proc = require_callback(h, name)
 
     if proc == nothing
         println(STDERR, "Callback for notification $name not defined.\n")
@@ -27,9 +24,10 @@ end
 
 function on_request(h::HostHandler, c, serial, method, args)
     if method == "specs" # called on UpdateRemotePlugins
-        reply_result(c, serial, get_specs(args...))
+        reply_result(c, serial, require_plugin(h, args...))
+        println(STDERR, h)
     else
-        proc = require_plug(h, method)
+        proc = require_callback(h, method)
 
         if proc == nothing
             emsg = "Callback for request $method not defined."
@@ -46,106 +44,54 @@ function on_request(h::HostHandler, c, serial, method, args)
     end
 end
 
-function require_plug(h::HostHandler, name::String)
+function require_callback(h::HostHandler, name::ByteString)
     (plugin_file, proc_id) = split(name, ':', 2)
-
-    if plugin_file ∉ h.loaded_plugins
-        cbs = get_callbacks(plugin_file)
-        merge!(h.proc_callbacks, cbs)
-    end
-
+    require_plugin(h, plugin_file)
     get(h.proc_callbacks, name, nothing)
 end
 
-function get_specs(plugin_file)
-    plugin = nothing
-    try
-        plugin = decorate(plugin_file)
+function require_plugin(h::HostHandler, filename)
+    if haskey(h.specs, filename)
+        return h.specs[filename]
     end
-
-    fn_specs = {}
-    global plug(proc_type, name, handler, opt_args...) = begin
-        conf = Dict{String, Any}()
-        conf["type"] = proc_type
-        conf["name"] = name
-        opts = Dict{String, Any}()
-        for (opt_k, opt_v) in opt_args
-            opts[string(opt_k)] = opt_v
-        end
-        conf["opts"] = opts
-        conf["sync"] = pop!(opts, "sync", 0)
-        push!(fn_specs, conf)
-    end
-
+    h.specs[filename] = specs = Any[]
+    tls = task_local_storage()
+    tls[:nvim_plugin_host] = h
+    tls[:nvim_plugin_filename] = filename
     try
-        eval(plugin)
+        require(filename)
     catch err
-        println(STDERR, "Error while loading plugin " * plugin_file)
+        println(STDERR, "Error while loading plugin " * filename)
         println(STDERR, err)
     end
-
-    fn_specs
+    delete!(tls, :nvim_plugin_host)
+    delete!(tls, :nvim_plugin_filename)
+    specs
 end
 
-function get_callbacks(plugin_file)
-    plugin = nothing
-    try
-        plugin = decorate(plugin_file)
-    end
-
-    proc_callbacks = Array((String, Expr), 0)
-    global plug(proc_type, name, handler, opt_args...) = begin
-        pattern = ""
-        for arg in opt_args
-            if arg[1] == "pattern"
-                pattern = ":" * arg[2]
-            end
-        end
-
-        proc_name = "$plugin_file:$proc_type:$name$pattern"
-        push!(proc_callbacks, (proc_name, parse(handler)))
-    end
-
-    try
-        eval(plugin)
-    catch err
-        println(STDERR, "Error while loading plugin " * plugin_file)
-        println(STDERR, err)
-    end
-
-    extract_fns(x) = (x[1], eval(x[2]))
-    Dict{String, Function}(map(extract_fns, proc_callbacks))
-end
-
-# finds constructs that look like decorators (i.e. macrocall then function)
-# and then adds the function name as the last argument to the macrocall
-function decorate(file_name::String)
-    ast = (open(readall, file_name) |> parse)::Expr
-    module_name = ast.args[2]
-
-    q = Array(Expr, 0)
-    candidate_fns = Array((Expr, Expr), 0)
-    push!(q, ast)
-    while length(q) > 0
-        expr = shift!(q)
-        for (i, arg) in enumerate(expr.args)
-            if typeof(arg) != Expr continue end
-            if arg.head == :macrocall && expr.args[i + 2].head == :function
-                # `i + 2` to skip LineNumberNode
-                fn_name = expr.args[i + 2].args[1].args[1]
-                push!(arg.args, symbol("$module_name.$fn_name"))
-            elseif arg.head == :macrocall && contains(string(arg.args[1]), "Neovim")
-                deleteat!(expr.args, i)
-                println(STDERR, "Bad decorator in " * file_name * ": " * string(arg))
-            end
-            push!(q, arg)
-        end
-    end
-    ast
-end
 
 # called by result of "decorator" macros in plugin files
-function plug(proc_type, name, handler, opts...) end
+function plug(proc_type, name, handler, opt_args...)
+    conf = Dict{ByteString, Any}()
+    conf["type"] = proc_type
+    conf["name"] = name
+    opts = Dict{ByteString, Any}()
+    for (opt_k, opt_v) in opt_args
+        opts[opt_k] = opt_v
+    end
+    conf["opts"] = opts
+    conf["sync"] = pop!(opts, "sync", 0)
+    tls = task_local_storage()
+    h = tls[:nvim_plugin_host]
+    filename = tls[:nvim_plugin_filename]
+    push!(h.specs[filename], conf)
+
+    proc_name = "$filename:$proc_type:$name"
+    if haskey(opts, "pattern")
+        proc_name *= ":" * opts["pattern"]
+    end
+    h.proc_callbacks[proc_name] = handler
+end
 
 macro command(args...)
     call_plug(:command, args...)
@@ -159,17 +105,49 @@ macro fn(args...)
     call_plug(:function, args...)
 end
 
-function call_plug(proc_type, name, opts...)
-    if length(opts) == 0
-        return symbol("")
+function fun(ex)
+    if ex.head == :block && length(ex.args) == 2 && ex.args[1].head == :line
+        ex.args[2]
+    else
+        @assert ex.head == :function || ex.head == :(=)
+        ex
+    end
+end
+
+function call_plug(proc_type, args...)
+    if length(args) == 1 && args[1].head == :->
+        # unwrap as line continuation
+        args = args[1].args
+    end
+    @assert length(args) <= 2
+
+    if length(args) == 2 && args[1].head == :call 
+        name = args[1].args[1]
+        opts = args[1].args[2:end]
+        handler = args[2]
+    else
+        if length(args) == 1
+            opts = Any[]
+        elseif args[1].head == :tuple
+            opts = args[1].args
+            args = args[2:end]
+        elseif args[1].head == :(=)
+            opts = Any[args[1]]
+            args = args[2:end]
+        else
+            error("malformatted registration macro")
+        end
+        println(args)
+        handler = fun(args[1])
+        @assert handler.args[1].head == :call
+        name = handler.args[1].args[1]
     end
 
-    handler = opts[end]
-    fcall_args = {string(proc_type), string(name), string(handler)}
-    for opt in opts[1:end-1]
+    fcall_args = Any[string(proc_type), string(name), handler]
+    for opt in opts
         var, val = opt.args
         push!(fcall_args, Expr(:tuple, string(var), val))
     end
 
-    Expr(:call, :plug, fcall_args...)
+    Expr(:call, :(Neovim.plug), fcall_args...)
 end
