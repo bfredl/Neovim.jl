@@ -1,9 +1,9 @@
-function! s:RequireJuliaHost(name)
+function! julia_neo#RequireJuliaHost(host)
   " Julia host arguments
   let args = ['-e', 'using Neovim; start_host()']
 
   try
-    return rpcstart('julia', args)
+    return rpcstart(a:host.orig_name, args)
   catch
     echomsg v:exception
   endtry
@@ -14,5 +14,3 @@ function! s:RequireJuliaHost(name)
         \ 'in Neovim log, so it may contain useful information. '.
         \ 'See also ~/.nvimlog.'
 endfunction
-
-call remote#host#Register('julia', '*.jl', function('s:RequireJuliaHost'))
