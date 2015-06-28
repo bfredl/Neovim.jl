@@ -35,24 +35,33 @@ function readloop(c::NvimClient, handler)
             ref = pop!(c.waiting, serial)
             put!(ref, (msg[3], msg[4]))
         elseif kind == NOTIFICATION
+            name = bytestring(msg[2])
+            args = retconvert(Any, c, msg[3])
             try
-                on_notify(handler, c, bytestring(msg[2]), retconvert(Any, c, msg[3]))
+                on_notify(handler, c, name, args)
             catch err
-                println(STDERR, "Excetion caught in notification handler")
-                println(STDERR, err)
+                logerr(err, catch_backtrace(), "handler", "notification", name, args)
             end
         elseif kind == REQUEST
             serial = msg[2]::Int
+            method = bytestring(msg[3])
+            args = retconvert(Any, c, msg[4])
             try
-                on_request(handler, c, serial, bytestring(msg[3]), retconvert(Any, c, msg[4]))
+                on_request(handler, c, serial, method, args)
             catch err
-                reply_error(c, serial, "Exception caught in request handler")
-                println(STDERR, "Excetion caught in request handler")
-                println(STDERR, err)
+                reply_error(c, serial, "Caught Exception in request handler.")
+                logerr(err, catch_backtrace(), "handler", "request", method, args)
             end
         end
         flush(STDERR)
     end
+end
+
+function logerr(e::Exception, bt, where, what, name, args)
+    println(STDERR, "Caught Exception in $where for $what \"$name\" with arguments $args:")
+    showerror(STDERR, e, bt)
+    println(STDERR, "")
+    flush(STDERR)
 end
 
 Base.wait(c::NvimClient) = wait(c.reader)
