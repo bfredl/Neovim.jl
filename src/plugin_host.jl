@@ -15,14 +15,13 @@ function on_notify(h::HostHandler, c, name::String, args::Vector{Any})
     proc = require_plug(h, name)
 
     if proc == nothing
-        throw(ErrorException(name * " not defined"))
+        println(STDERR, "Callback for notification $name not defined.\n")
     end
 
     @async(try
         proc(c, args...)
-    catch
-        throw(MethodError(name, tuple(NvimClient, args...)))
-        throw(err)
+    catch err
+        logerr(err, catch_backtrace(), "callback", "notification", name, args)
     end)
 end
 
@@ -33,14 +32,16 @@ function on_request(h::HostHandler, c, serial, method, args)
         proc = require_plug(h, method)
 
         if proc == nothing
-            reply_error(c, serial, "Command not defined.")
+            emsg = "Callback for request $method not defined."
+            reply_error(c, serial, emsg)
+            println(STDERR, "$emsg\n")
         end
 
         @async(try
             reply_result(c, serial, proc(c, args...))
-        catch
-            err = "No matching method for args (NvimClient, " * join(args, ", ") * ")"
-            reply_error(c, serial, err)
+        catch err
+            reply_error(c, serial, "Exception in callback for request $method")
+            logerr(err, catch_backtrace(), "callback", "request", method, args)
         end)
     end
 end
