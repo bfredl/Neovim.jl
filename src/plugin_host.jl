@@ -25,7 +25,6 @@ end
 function on_request(h::HostHandler, c, serial, method, args)
     if method == "specs" # called on UpdateRemotePlugins
         reply_result(c, serial, require_plugin(h, args...))
-        println(STDERR, h)
     else
         proc = require_callback(h, method)
 
@@ -54,77 +53,66 @@ function require_plugin(h::HostHandler, filename)
     if haskey(h.specs, filename)
         return h.specs[filename]
     end
-    h.specs[filename] = specs = Any[]
+    h.specs[filename] = Any[]
     tls = task_local_storage()
-    tls[:nvim_plugin_host] = h
-    tls[:nvim_plugin_filename] = filename
     try
         require(filename)
+        add_specs!(h, filename, get_specs(tls[:plugin_module]))
     catch err
         println(STDERR, "Error while loading plugin " * filename)
         println(STDERR, err)
     end
-    delete!(tls, :nvim_plugin_host)
-    delete!(tls, :nvim_plugin_filename)
-    specs
+    h.specs[filename]
 end
 
+macro plugin()
+    :(task_local_storage()[:plugin_module] = current_module())
+end
 
-# called by result of "decorator" macros in plugin files
-function plug(proc_type, name, handler, opt_args)
-    conf = Dict{ByteString, Any}()
-    conf["type"] = proc_type
-    conf["name"] = name
-    opts = Dict{ByteString, Any}()
-    for (opt_k, opt_v) in opt_args
-        opts[string(opt_k)] = opt_v
+const cmd_types = Set([:Command, :Autocmd, :Function])
+function get_specs(plugin::Module)
+    plugin_specs = []
+
+    if !isdefined(plugin, :META)
+        return plugin_cmds
     end
-    conf["opts"] = opts
-    conf["sync"] = pop!(opts, "sync", 0)
-    tls = task_local_storage()
-    h = tls[:nvim_plugin_host]
-    filename = tls[:nvim_plugin_filename]
-    push!(h.specs[filename], conf)
 
-    pattern = ""
-    for arg in opt_args
-        if arg[1] == "pattern"
-            pattern = ":" * arg[2]
+    for f in filter(k->isa(k, Function), keys(plugin.META))
+        fdocs = Base.Markdown.plain(Base.doc(f))
+        spec_str = split(fdocs, '\n', 2)[1]
+        try
+            spec = parse(spec_str)
+            if spec.head == :call && spec.args[1] in cmd_types
+                push!(plugin_specs, (f, spec))
+            end
         end
     end
 
-    proc_name = "$filename:$proc_type:$name$pattern"
-    h.proc_callbacks[proc_name] = handler
+    return plugin_specs
 end
 
-macro command(args...)
-    call_plug(:command, args...)
-end
+function add_specs!(h::HostHandler, filename, specs)
+    for spec in specs
+        handler, def = spec
+        proc_type = lowercase(string(def.args[1]))
+        proc_name = string(def.args[2])
+        pattern = ""
+        conf = Dict{ByteString, Any}()
+        conf["type"] = proc_type
+        conf["name"] = proc_name
+        opts = Dict{ByteString, Any}()
+        for opt in def.args[3:end]
+            opt_k, opt_v = opt.args
+            opts[string(opt_k)] = opt_v
+            if opt_k == :pattern
+                pattern = ":" * opt_v
+            end
+        end
+        conf["opts"] = opts
+        conf["sync"] = pop!(opts, "sync", false)
 
-macro autocmd(args...)
-    call_plug(:autocmd, args...)
-end
-
-macro fn(args...)
-    call_plug(:function, args...)
-end
-
-#WIP
-function call_plug(proc_type, args...)
-    if length(opts) == 0
-        return symbol("")
+        push!(h.specs[filename], conf)
+        proc_id = "$filename:$proc_type:$proc_name$pattern"
+        h.proc_callbacks[proc_id] = handler
     end
-    #if length(args)== 1 && args[1].head = :->
-    #    opts, call = args[1].args
-    #end
-
-    handler = opts[end]
-    fcall_args = {string(proc_type), string(name), string(handler)}
-    for opt in opts[1:end-1]
-        var, val = opt.args
-        push!(fcall_args, Expr(:tuple, string(var), val))
-    end
-
-    Expr(:call, :plug, fcall_args...)
 end
-
