@@ -4,15 +4,16 @@ import Base: return_types
 using Compat
 
 using Neovim
-import Neovim: get_buffers, set_line, get_line, vim_eval, command, get_var
+import Neovim: get_buffers, set_line, get_line
+import Neovim: vim_eval, command, get_var, set_var
 import Neovim: on_notify, on_request
 nvim, proc = nvim_spawn()
 
 #test buffer
 buf = get_buffers(nvim)[1]
 @assert isa(buf,Buffer)
-set_line(buf, 1, "some text")
-text = get_line(buf, 1)
+set_line(buf, 0, "some text")
+text = get_line(buf, 0)
 @assert text == "some text"
 
 #test high-level buffer interface
@@ -141,3 +142,47 @@ command(nvim, "call rpcnotify($(nvim.channel_id), 'mymethod', 10, 20)")
 #as ByteString isn't concrete anyway, this doesn't give that much really
 #@assert return_types(Neovim.get_line_slice, (Buffer,Int,Int,Bool,Bool)) == [Vector{TypeVar(:_,None,ByteString)}]
 
+# test host
+hostdir = dirname(dirname(@__FILE__))
+plugdir = joinpath(dirname(@__FILE__), "hosttest")
+#fake initialization for :UpdateRemotePlugins
+vimdir = mktempdir()
+nvimrc = joinpath(vimdir, "nvimrc")
+open(f->nothing,nvimrc,"w")
+ENV["MYVIMRC"] = nvimrc
+ENV["NEOVIM_JL_DEBUG"] = "templog"
+rtp = "set rtp+=$hostdir,$plugdir"
+juliap = "let g:julia_host_prog = '$(joinpath(JULIA_HOME, "julia"))'"
+run(`nvim -u $nvimrc -i NONE --cmd $rtp --cmd $juliap -c UpdateRemotePlugins -c q`)
+println("REGISTERED")
+run(`cat templog`)
+run(`cat $(joinpath(vimdir, ".nvimrc-rplugin~"))`)
+
+try
+ref = RemoteRef()
+n,p = nvim_spawn(TestHandler(ref), cmd=`nvim --embed -u $nvimrc -i NONE --cmd $rtp --cmd $juliap`)
+
+@assert vim_eval(n, "TestFun('a',3)") == "TestFun got a, 3"
+
+command(n, "call AsyncFun($(n.channel_id), {'alfa':1, 'omega':'theend'})")
+@assert take!(ref) == ("AsyncReply", Any[["alfa"=>1, "omega"=>"theend"]])
+
+b = current_buffer(n)
+b[1:5] = "line"
+command(n, "2,3JLCommand text")
+@assert b[:] == ["line","line","line","line","line","text"]
+@assert get_var(n, "therange") == [2,3]
+
+#TODO: more specific test? (somewhere in there should be "KABOOM!")
+@test_throws ErrorException command(n, "Explode")
+
+set_var(n, "zinged", 5)
+command(n, "do User zing")
+@assert get_var(n, "zinged") == 6
+command(n, "do User yoink")
+# shouldn't change
+@assert get_var(n, "zinged") == 6
+finally
+#for debugging tests:
+run(`cat templog`)
+end

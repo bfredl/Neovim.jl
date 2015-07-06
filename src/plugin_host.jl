@@ -38,8 +38,8 @@ function on_request(h::HostHandler, c, serial, method, args)
         @async(try
             reply_result(c, serial, proc(c, args...))
         catch err
-            reply_error(c, serial, "Exception in callback for request $method")
             logerr(err, catch_backtrace(), "callback", "request", method, args)
+            reply_error(c, serial, "Exception in callback for request $method")
         end)
     end
 end
