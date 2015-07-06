@@ -5,5 +5,6 @@ julia:
 before_install:
   - sudo apt-get update -qq;
     eval "$(curl -Ss https://raw.githubusercontent.com/neovim/bot-ci/master/scripts/travis-setup.sh) nightly-x64";
+  - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
 script:
     - julia -e 'Pkg.init(); Pkg.clone(pwd()); Pkg.test("Neovim")'

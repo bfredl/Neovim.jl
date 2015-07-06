@@ -24,8 +24,8 @@ end
 
 nvim_env(args...) = nvim_connect(ENV["NVIM_LISTEN_ADDRESS"], args...)
 
-function nvim_spawn(args...)
-    output, input, proc = readandwrite(`nvim --embed`)
+function nvim_spawn(args...; cmd=`nvim --embed`)
+    output, input, proc = readandwrite(cmd)
     (NvimClient(input, output, args...), proc)
 end
 
