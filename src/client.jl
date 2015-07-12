@@ -27,7 +27,7 @@ end
 # this is probably not most efficient in the common case (no contention)
 # but it's the simplest way to assure task-safety of reading from the stream
 function readloop(c::NvimClient, handler)
-    while true
+    while !eof(c.output)
         msg = unpack(c.output)
         kind = msg[1]::Int
         if kind == RESPONSE
@@ -35,22 +35,33 @@ function readloop(c::NvimClient, handler)
             ref = pop!(c.waiting, serial)
             put!(ref, (msg[3], msg[4]))
         elseif kind == NOTIFICATION
+            name = bytestring(msg[2])
+            args = retconvert(Any, c, msg[3])
             try
-                on_notify(handler, c, bytestring(msg[2]), retconvert(Any, c, msg[3]))
+                on_notify(handler, c, name, args)
             catch err
-                println("Excetion caught in notification handler")
-                println(err)
+                logerr(err, catch_backtrace(), "handler", "notification", name, args)
             end
         elseif kind == REQUEST
             serial = msg[2]::Int
+            method = bytestring(msg[3])
+            args = retconvert(Any, c, msg[4])
             try
-                on_request(handler, c, serial, bytestring(msg[3]), retconvert(Any, c, msg[4]))
+                on_request(handler, c, serial, method, args)
             catch err
-                println("Excetion caught in request handler")
-                println(err)
+                reply_error(c, serial, "Caught Exception in request handler.")
+                logerr(err, catch_backtrace(), "handler", "request", method, args)
             end
         end
+        flush(STDERR)
     end
+end
+
+function logerr(e::Exception, bt, where, what, name, args)
+    println(STDERR, "Caught Exception in $where for $what \"$name\" with arguments $args:")
+    showerror(STDERR, e, bt)
+    println(STDERR, "")
+    flush(STDERR)
 end
 
 Base.wait(c::NvimClient) = wait(c.reader)
