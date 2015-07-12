@@ -182,6 +182,10 @@ command(n, "do User zing")
 command(n, "do User yoink")
 # shouldn't change
 @assert get_var(n, "zinged") == 6
+
+@assert vim_eval(n, "Global()") == 3
+@assert vim_eval(n, "Local()") == 37
+
 finally
 #for debugging tests:
 run(`cat templog`)

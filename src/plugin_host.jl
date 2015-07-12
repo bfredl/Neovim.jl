@@ -15,11 +15,11 @@ function on_notify(h::HostHandler, c, name::String, args::Vector{Any})
         println(STDERR, "Callback for notification $name not defined.\n")
     end
 
-    @async(try
+    @async try
         proc(c, args...)
     catch err
         logerr(err, catch_backtrace(), "callback", "notification", name, args)
-    end)
+    end
 end
 
 function on_request(h::HostHandler, c, serial, method, args)
@@ -35,12 +35,12 @@ function on_request(h::HostHandler, c, serial, method, args)
             println(STDERR, "$emsg\n")
         end
 
-        @async(try
+        @async try
             reply_result(c, serial, proc(c, args...))
         catch err
             logerr(err, catch_backtrace(), "callback", "request", method, args)
             reply_error(c, serial, "Exception in callback for request $method")
-        end)
+        end
     end
 end
 
@@ -61,8 +61,9 @@ function require_plugin(h::HostHandler, filename)
     try
         require(filename)
     catch err
-        println(STDERR, "Error while loading plugin " * filename)
-        println(STDERR, err)
+        println(STDERR, "Error while loading plugin $filename:")
+        showerror(STDERR, err, catch_backtrace())
+        flush(STDERR)
     end
     delete!(tls, :nvim_plugin_host)
     delete!(tls, :nvim_plugin_filename)
@@ -97,12 +98,24 @@ macro command(args...)
     call_plug(:command, args...)
 end
 
+macro commandsync(args...)
+    call_plug(:command, args..., sync=true)
+end
+
 macro autocmd(args...)
     call_plug(:autocmd, args...)
 end
 
+macro autocmdsync(args...)
+    call_plug(:autocmd, args..., sync=true)
+end
+
 macro fn(args...)
     call_plug(:function, args...)
+end
+
+macro fnsync(args...)
+    call_plug(:function, args..., sync=true)
 end
 
 function fun(ex)
@@ -114,7 +127,7 @@ function fun(ex)
     end
 end
 
-function call_plug(proc_type, args...)
+function call_plug(proc_type, args...; sync=false)
     if length(args) == 1 && args[1].head == :->
         # unwrap as line continuation
         args = args[1].args
@@ -137,16 +150,18 @@ function call_plug(proc_type, args...)
         else
             error("malformatted registration macro")
         end
-        println(args)
         handler = fun(args[1])
         @assert handler.args[1].head == :call
         name = handler.args[1].args[1]
     end
 
-    fcall_args = Any[string(proc_type), string(name), handler]
+    fcall_args = Any[string(proc_type), string(name), esc(handler)]
     for opt in opts
         var, val = opt.args
         push!(fcall_args, Expr(:tuple, string(var), val))
+    end
+    if sync
+        push!(fcall_args, :(("sync", true)))
     end
 
     Expr(:call, :(Neovim.plug), fcall_args...)
