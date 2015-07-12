@@ -97,12 +97,24 @@ macro command(args...)
     call_plug(:command, args...)
 end
 
+macro commandsync(args...)
+    call_plug(:command, args..., sync=true)
+end
+
 macro autocmd(args...)
     call_plug(:autocmd, args...)
 end
 
+macro autocmdsync(args...)
+    call_plug(:autocmd, args..., sync=true)
+end
+
 macro fn(args...)
     call_plug(:function, args...)
+end
+
+macro fnsync(args...)
+    call_plug(:function, args..., sync=true)
 end
 
 function fun(ex)
@@ -114,7 +126,7 @@ function fun(ex)
     end
 end
 
-function call_plug(proc_type, args...)
+function call_plug(proc_type, args...; sync=false)
     if length(args) == 1 && args[1].head == :->
         # unwrap as line continuation
         args = args[1].args
@@ -137,16 +149,18 @@ function call_plug(proc_type, args...)
         else
             error("malformatted registration macro")
         end
-        println(args)
         handler = fun(args[1])
         @assert handler.args[1].head == :call
         name = handler.args[1].args[1]
     end
 
-    fcall_args = Any[string(proc_type), string(name), handler]
+    fcall_args = Any[string(proc_type), string(name), esc(handler)]
     for opt in opts
         var, val = opt.args
         push!(fcall_args, Expr(:tuple, string(var), val))
+    end
+    if sync
+        push!(fcall_args, :(("sync", true)))
     end
 
     Expr(:call, :(Neovim.plug), fcall_args...)

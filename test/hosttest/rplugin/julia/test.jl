@@ -1,6 +1,6 @@
 #TEST
 using Neovim
-import Neovim: set_var, vim_eval
+import Neovim: get_var, set_var, vim_eval
 
 # allow zero, one or many options
 # allow handler on same line or continued with ->
@@ -22,8 +22,17 @@ function (nvim, args, range)
     set_var(nvim, "therange", range)
 end
 
-@Neovim.command (sync=true) function Explode(nvim)
+@Neovim.commandsync function Explode(nvim)
     error("KABOOM!")
 end
 
 @Neovim.autocmd User(pattern="zing", sync=true) (nvim) -> set_var(nvim, "zinged", get_var(nvim, "zinged")+1)
+
+globvar = 3
+@Neovim.fnsync Global(nvim, args) = globvar
+
+let locvar = 37
+    @Neovim.fn (sync=true) Local(nvim, args) = locvar
+end
+
+
