@@ -11,8 +11,8 @@ nvim, proc = nvim_spawn()
 #test buffer
 buf = get_buffers(nvim)[1]
 @assert isa(buf,Buffer)
-set_line(buf, 1, "some text")
-text = get_line(buf, 1)
+set_line(buf, 0, "some text")
+text = get_line(buf, 0)
 @assert text == "some text"
 
 #test high-level buffer interface
