@@ -15,11 +15,11 @@ function on_notify(h::HostHandler, c, name::String, args::Vector{Any})
         println(STDERR, "Callback for notification $name not defined.\n")
     end
 
-    @async(try
+    @async try
         proc(c, args...)
     catch err
         logerr(err, catch_backtrace(), "callback", "notification", name, args)
-    end)
+    end
 end
 
 function on_request(h::HostHandler, c, serial, method, args)
@@ -35,12 +35,12 @@ function on_request(h::HostHandler, c, serial, method, args)
             println(STDERR, "$emsg\n")
         end
 
-        @async(try
+        @async try
             reply_result(c, serial, proc(c, args...))
         catch err
             logerr(err, catch_backtrace(), "callback", "request", method, args)
             reply_error(c, serial, "Exception in callback for request $method")
-        end)
+        end
     end
 end
 
@@ -61,8 +61,9 @@ function require_plugin(h::HostHandler, filename)
     try
         require(filename)
     catch err
-        println(STDERR, "Error while loading plugin " * filename)
-        println(STDERR, err)
+        println(STDERR, "Error while loading plugin $filename:")
+        showerror(STDERR, err, catch_backtrace())
+        flush(STDERR)
     end
     delete!(tls, :nvim_plugin_host)
     delete!(tls, :nvim_plugin_filename)

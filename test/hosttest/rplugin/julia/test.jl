@@ -7,7 +7,6 @@ import Neovim: get_var, set_var, vim_eval
 # allow name on options or on handler
 # allow one-line or muli-line method def
 
-
 @Neovim.fn (sync=true) ->
 TestFun(nvim, args) = "TestFun got " * join(args, ", ")
 
