@@ -1,4 +1,5 @@
 #TEST
+module MyPlugin
 using Neovim
 import Neovim: get_var, set_var, vim_eval
 
@@ -34,4 +35,4 @@ let locvar = 37
     @Neovim.fn (sync=true) Local(nvim, args) = locvar
 end
 
-
+end
