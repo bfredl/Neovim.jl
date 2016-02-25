@@ -8,7 +8,7 @@ end
 
 # names/methods for invoked cmds/fns have the form:
 #   <file path>:(command|function|autocmd):<procedure name>
-function on_notify(h::HostHandler, c, name::String, args::Vector{Any})
+function on_notify(h::HostHandler, c, name::AbstractString, args::Vector{Any})
     proc = require_callback(h, name)
 
     if proc == nothing
@@ -45,7 +45,7 @@ function on_request(h::HostHandler, c, serial, method, args)
 end
 
 function require_callback(h::HostHandler, name::ByteString)
-    (plugin_file, proc_id) = split(name, ':', 2)
+    (plugin_file, proc_id) = split(name, ':',limit=2)
     require_plugin(h, plugin_file)
     get(h.proc_callbacks, name, nothing)
 end

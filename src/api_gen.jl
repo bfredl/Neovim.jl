@@ -3,18 +3,19 @@
 # Types defined by the api
 immutable NvimApiObject{N} <: NvimObject
     client::NvimClient
-    # TODO: use a fixarray or Uint64
-    hnd::Vector{Uint8}
+    # TODO: use a fixarray or UInt64
+    hnd::Vector{UInt8}
 end
 
+import Base.==
 =={N}(a::NvimApiObject{N},b::NvimApiObject{N}) = a.hnd == b.hnd
 
-NvimApiObject(c, e::Ext) = NvimApiObject{int(e.typecode)}(c, e.data)
+NvimApiObject(c, e::Ext) = NvimApiObject{Int(e.typecode)}(c, e.data)
 #Not really module-interface clean, I know...
 MsgPack.pack{N}(s, o::NvimApiObject{N}) = MsgPack.pack(s, Ext(N, o.hnd))
 
 symbolize(val::Dict) = Dict{Symbol,Any}([(symbolize(k),symbolize(v)) for (k,v) in val])
-symbolize(val::Vector{Uint8}) = symbol(bytestring(val))
+symbolize(val::Vector{UInt8}) = symbol(bytestring(val))
 symbolize(val::ByteString) = symbol(val)
 symbolize(val::Vector) = [symbolize(v) for v in val]
 symbolize(val) = val
@@ -31,15 +32,15 @@ const _functions = _metadata[:functions]
 # will break if the api starts using overloading
 const api_methods = [f[:name] => f for f in _functions]
 
-typealias Bytes Union(ByteString, Vector{Uint8})
-const typemap = @compat Dict{Symbol,Type}(
+typealias Bytes Union{ByteString, Vector{UInt8}}
+const typemap = Dict{Symbol,Type}(
     :Integer => Integer,
     :Boolean => Bool,
     :String => Bytes,
     :Array => Vector{Any},
     :Dictionary => Dict,
     :Object => Any,
-    :void => Nothing
+    :void => Void
 )
 
 for (name, info) in _types
@@ -66,7 +67,7 @@ function gettype(t::Symbol)
         if length(params) == 1
             Vector{tcontains}
         else
-            @compat Tuple{fill(tcontains, int(params[2]))...}
+            Tuple{fill(tcontains, parse(Int, params[2]))...}
         end
     else
         Any
@@ -81,19 +82,19 @@ checkarg{T}(::Type{Vector{T}}, val::Vector) = convert(Vector{T}, val)
 checkarg{T<:Bytes}(::Type{Vector{Bytes}}, val::Vector{T}) = val
 checkarg{T<:Integer}(::Type{Vector{Integer}}, val::Vector{T}) = val
 # this must be specialcased though
-checkarg(::Type{Vector{Integer}}, val::Vector{Uint8}) = Int[val...]
+checkarg(::Type{Vector{Integer}}, val::Vector{UInt8}) = Int[val...]
 # tuples are covariant, so no problem
-checkarg{T}(::Type{Vector{T}}, val::(@compat Tuple{Vararg{T}})) = [val...]
+checkarg{T}(::Type{Vector{T}}, val::(Tuple{Vararg{T}})) = [val...]
 
-retconvert(typ::Union(Type{Any},Type{Bytes}), c, val::Union(ByteString, Vector{Uint8})) = bytestring(val)
+retconvert(typ::Union{Type{Any},Type{Bytes}}, c, val::Union{ByteString, Vector{UInt8}}) = bytestring(val)
 # needed for disambiguation
-retconvert(typ::Type{Any}, c, val::Vector{Uint8}) = bytestring(val)
-retconvert(typ::Union(Type{Any}, Type{Bool}), c, val::Bool) = val
+retconvert(typ::Type{Any}, c, val::Vector{UInt8}) = bytestring(val)
+retconvert(typ::Union{Type{Any}, Type{Bool}}, c, val::Bool) = val
 # this assumes the current unpack implementation in MsgPack,
 # where all int types get promoted to 64 bit
-retconvert(typ::Union(Type{Any},Type{Integer}), c, val::Int64) = val
-retconvert(typ::Union(Type{Any},Type{Nothing}), c, val::Nothing) = nothing
-retconvert(typ::Union(Type{Any},Type{Dict}), c, val::Dict) = Dict{ByteString,Any}([(bytestring(k),retconvert(Any,c,v)) for (k,v) in val])
+retconvert(typ::Union{Type{Any},Type{Integer}}, c, val::Int64) = val
+retconvert(typ::Union{Type{Any},Type{Void}}, c, val::Void) = nothing
+retconvert(typ::Union{Type{Any},Type{Dict}}, c, val::Dict) = Dict{ByteString,Any}([(bytestring(k),retconvert(Any,c,v)) for (k,v) in val])
 # we assume Msgpack only generates untyped arrays
 retconvert{T}(typ::Type{Vector{T}}, c, val::Vector) = [retconvert(T,c,v) for v in val]
 retconvert(typ::Type{Any}, c, val::Vector) = Any[retconvert(Any,c,v) for v in val]
@@ -101,7 +102,7 @@ retconvert(typ::Type{Any}, c, val::Vector) = Any[retconvert(Any,c,v) for v in va
 # this is not really strict enough
 #retconvert{T<:Tuple}(typ::Type{T}, c, val::Vector) = tuple(val...)::T
 # handle the only case, 2-tuples, manually for now
-retconvert{T,U}(::Type{@compat Tuple{T,U}}, c, val::Vector) = (retconvert(T,c,val[1]),retconvert(U,c,val[2]))
+retconvert{T,U}(::Type{Tuple{T,U}}, c, val::Vector) = (retconvert(T,c,val[1]),retconvert(U,c,val[2]))
 
 retconvert{N}(typ::Type{NvimApiObject{N}}, c, val::Ext) = NvimApiObject(c, val)::NvimApiObject{N}
 #retconvert{T}(typ::Type{T}, c, val::T) = val
@@ -112,7 +113,7 @@ function build_function(f)
     params = f[:parameters]
     tret = f[:return_type]
 
-    parts = split(string(name), "_", 2)
+    parts = split(string(name), "_"; limit=2)
     reciever = parts[1]
     shortname = symbol(parts[2])
     if shortname == :eval; shortname = :vim_eval; end
@@ -130,7 +131,7 @@ function build_function(f)
         # and dynamically check if not a subtype
         erased = t
         if t <: Vector
-            erased = Union(Vector, @compat Tuple{Vararg{eltype(t)}})
+            erased = Union{Vector, Tuple{Vararg{eltype(t)}}}
             push!(body, :( $(args[i]) = checkarg($t, $(args[i]))))
         end
         push!(j_args, :( $(args[i])::($erased) ))

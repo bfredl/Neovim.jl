@@ -133,11 +133,11 @@ command(nvim, "call rpcnotify($(nvim.channel_id), 'mymethod', 10, 20)")
 
 # type stability of generated functions
 @assert return_types(Neovim.get_buffers, (NvimClient,)) == [Vector{Buffer}]
-@assert return_types(Neovim.command, (NvimClient,UTF8String)) == [Nothing]
+@assert return_types(Neovim.command, (NvimClient,UTF8String)) == [Void]
 @assert return_types(Neovim.get_current_line, (NvimClient,)) == [ByteString]
 @assert return_types(Neovim.is_valid, (Tabpage,)) == [Bool]
 @assert return_types(Neovim.get_height, (Window,)) == [Int]
-@assert return_types(Neovim.get_mark, (Buffer,ASCIIString)) == [@compat Tuple{Int,Int}]
+@assert return_types(Neovim.get_mark, (Buffer,ASCIIString)) == [Tuple{Int,Int}]
 
 #as ByteString isn't concrete anyway, this doesn't give that much really
 #@assert return_types(Neovim.get_line_slice, (Buffer,Int,Int,Bool,Bool)) == [Vector{TypeVar(:_,None,ByteString)}]
@@ -165,7 +165,7 @@ n,p = nvim_spawn(TestHandler(ref), cmd=`nvim --embed -u $nvimrc -i NONE --cmd $r
 @assert vim_eval(n, "TestFun('a',3)") == "TestFun got a, 3"
 
 command(n, "call AsyncFun($(n.channel_id), {'alfa':1, 'omega':'theend'})")
-@assert take!(ref) == ("AsyncReply", Any[["alfa"=>1, "omega"=>"theend"]])
+@assert take!(ref) == ("AsyncReply", Any[Dict("alfa"=>1, "omega"=>"theend")])
 
 b = current_buffer(n)
 b[1:5] = "line"

@@ -34,16 +34,18 @@ end
 Base.length(b::Buffer) = line_count(b)
 Base.endof(b::Buffer) = EndRelIndex(-1)
 
+import Base.-, Base.+
+
 -(a::EndRelIndex, b::Integer) = EndRelIndex(a.i - b)
 +(a::EndRelIndex, b::Integer) = EndRelIndex(a.i + b)
 +(a::Integer, b::EndRelIndex) = EndRelIndex(a + b.i)
 
 Base.colon(a::Integer, b::EndRelIndex) = CappedRange(a, b)
-Base.colon(a::EndRelIndex, b::Union(Integer, EndRelIndex)) = CappedRange(a, b)
+Base.colon(a::EndRelIndex, b::Union{Integer, EndRelIndex}) = CappedRange(a, b)
 
 Base.getindex(b::Buffer, r::CappedRange) = get_line_slice(b, r.start, r.stop, true, true)
 Base.getindex(b::Buffer, ::Colon) = b[1:end]
-function Base.getindex(b::Buffer, i::Union(Integer, EndRelIndex))
+function Base.getindex(b::Buffer, i::Union{Integer, EndRelIndex})
     line = b[i:i]
     length(line) > 0 ? line[1] : ""
 end
@@ -58,10 +60,10 @@ end
 Base.setindex!(b::Buffer, lines::Array, r::CappedRange) =
     set_line_slice(b, r.start, r.stop, true, true, lines)
 Base.setindex!(b::Buffer, lines::Array, ::Colon) = b[1:end] = lines
-Base.setindex!(b::Buffer, s::String, i::Integer) = b[i:i] = [s]
-Base.setindex!(b::Buffer, s::String, i::EndRelIndex) = b[i:i] = [s]
-Base.setindex!(b::Buffer, s::String, r::CappedRange) = b[r] = [s]
-function Base.setindex!{T<:Integer}(b::Buffer, s::String, r::UnitRange{T})
+Base.setindex!(b::Buffer, s::AbstractString, i::Integer) = b[i:i] = [s]
+Base.setindex!(b::Buffer, s::AbstractString, i::EndRelIndex) = b[i:i] = [s]
+Base.setindex!(b::Buffer, s::AbstractString, r::CappedRange) = b[r] = [s]
+function Base.setindex!{T<:Integer}(b::Buffer, s::AbstractString, r::UnitRange{T})
     ndests = r.stop - r.start + 1
     ndests <= 0 ? s : b[r] = fill(s, ndests)
 end
