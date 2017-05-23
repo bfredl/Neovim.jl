@@ -1,6 +1,6 @@
 language: julia
 julia:
-  - release
+  - 0.4
   - nightly
 before_install:
   - sudo apt-get update -qq;
