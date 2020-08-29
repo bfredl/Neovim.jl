@@ -1,19 +1,16 @@
-# using Base.Test
-include("../src/Neovim.jl")
 using Test
 import Base: return_types
 
 using Compat
 
-# using Neovim
-# import Neovim: get_buffers, set_line, get_line
-# import Neovim: vim_eval, command, get_var, set_var
-# import Neovim: on_notify, on_request
+using Neovim
+import Neovim: get_buffers, set_line, get_line
+import Neovim: vim_eval, command, get_var, set_var
+import Neovim: on_notify, on_request
 nvim = Neovim.nvim_spawn()
 
 # Test buffer
 buf = Neovim.get_buffers(nvim)[1]
-println(buf)
 @assert isa(buf, Neovim.Buffer)
 set_line(buf, 0, "some text")
 text = get_line(buf, 0)
