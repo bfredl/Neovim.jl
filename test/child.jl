@@ -1,7 +1,7 @@
 using Neovim
 import Neovim: on_notify, on_request, get_buffers, set_line
 #test events
-immutable ChildHandler
+struct ChildHandler
 end
 on_notify(h::ChildHandler, c, name, args) = (println("$name $args"), flush(STDOUT))
 function on_request(h::ChildHandler, c, serial, name, args)

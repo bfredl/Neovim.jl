@@ -3,21 +3,28 @@
 # Then, at any time, press Ctrl-O to edit in normal mode.
 # To be able to execute code and search history etc, going back to insert mode is neccesary.
 # For the moment, the first keypress after going to insert mode disappears sometimes.
-import Base: LineEdit, REPL
-using Neovim
-import Neovim: get_cursor, set_cursor, command, input
+# import Base: LineEdit, REPL
+import REPL
+import REPL.LineEdit
 
-type NvimReplState
+include("Neovim.jl")
+
+# using Neovim
+# import Neovim: get_cursor, set_cursor, command, input
+
+mutable struct NvimReplState
     active::Bool
-    nv::NvimClient
+    nv::Neovim.NvimClient
     s::LineEdit.MIState
     rbuf::IOBuffer
     function NvimReplState()
         state = new(false)
-        state.nv, proc = nvim_spawn(state)
+        state.nv = Neovim.nvim_spawn(state)
         state
     end
 end
+
+
 function Neovim.on_notify(s::NvimReplState, nv, name, args)
     @async begin
         update_screen()
@@ -32,17 +39,17 @@ end
 const rstate = NvimReplState()
 const channel = rstate.nv.channel_id
 
-command(rstate.nv, "au CursorMoved,TextChanged * call rpcnotify($channel, 'update')")
-command(rstate.nv, "au InsertEnter * call rpcnotify($channel, 'insert')")
-command(rstate.nv, "set ft=julia")
+Neovim.command(rstate.nv, "au CursorMoved,TextChanged * call rpcnotify($channel, 'update')")
+Neovim.command(rstate.nv, "au InsertEnter * call rpcnotify($channel, 'insert')")
+Neovim.command(rstate.nv, "set ft=julia")
 
 
-const nvim_keymap = {
+const nvim_keymap = Dict(
     "^O" => function (s,repl,c)
         ps = LineEdit.state(s, LineEdit.mode(s))
         nvim_normal(ps.terminal,s,repl)
     end
-}
+)
 
 function update_screen()
     if !rstate.active
