@@ -16,11 +16,12 @@ import Base.==
 NvimApiObject(c, e::Extension) = NvimApiObject{UInt8(e.type)}(c, e.data)
 
 # Not really module-interface clean, I know...
-MsgPack.pack(s, o::NvimApiObject{N}) where {N} = MsgPack.pack(s, Extension(N, o.hnd))
+# TODO(smolck): Was just s with Any type, is this right?
+MsgPack.pack(s::IO, o::NvimApiObject{N}) where {N} = MsgPack.pack(s, Extension(N, o.hnd))
 
 symbolize(val::Dict) = Dict{Symbol,Any}([(symbolize(k), symbolize(v)) for (k, v) in val])
 # symbolize(val::Vector{UInt8}) = symbol(bytestring(val))
-symbolize(val::Vector{UInt8}) = Symbol(unsafe_string(val))
+symbolize(val::Vector{UInt8}) = Symbol(String(val))
 symbolize(val::String) = Symbol(val)
 symbolize(val::Vector) = [symbolize(v) for v in val]
 symbolize(val) = val
@@ -98,10 +99,10 @@ checkarg(::Type{Vector{Integer}}, val::Vector{UInt8}) = Int[val...]
 checkarg(::Type{Vector{T}}, val::(Tuple{Vararg{T}})) where {T} = [val...]
 
 retconvert(typ::Union{Type{Any},Type{Bytes}}, c, val::Union{String,Vector{UInt8}}) =
-    unsafe_string(val)
+    String(val)
 
 # needed for disambiguation
-retconvert(typ::Type{Any}, c, val::Vector{UInt8}) = unsafe_string(val)
+retconvert(typ::Type{Any}, c, val::Vector{UInt8}) = String(val)
 retconvert(typ::Union{Type{Any},Type{Bool}}, c, val::Bool) = val
 
 # this assumes the current unpack implementation in MsgPack,
@@ -109,7 +110,7 @@ retconvert(typ::Union{Type{Any},Type{Bool}}, c, val::Bool) = val
 retconvert(typ::Union{Type{Any},Type{Integer}}, c, val::Int64) = val
 retconvert(typ::Union{Type{Any},Type{Nothing}}, c, val::Nothing) = nothing
 retconvert(typ::Union{Type{Any},Type{Dict}}, c, val::Dict) =
-    Dict{String,Any}([(unsafe_string(k), retconvert(Any, c, v)) for (k, v) in val])
+    Dict{String,Any}([(String(k), retconvert(Any, c, v)) for (k, v) in val])
 
 # we assume Msgpack only generates untyped arrays
 retconvert(typ::Type{Vector{T}}, c, val::Vector) where {T} =
@@ -124,7 +125,7 @@ retconvert(::Type{Tuple{T,U}}, c, val::Vector) where {T,U} =
 
 retconvert(typ::Type{NvimApiObject{N}}, c, val::Extension) where {N} = NvimApiObject(c, val)::NvimApiObject{N}
 
-# retconvert{T}(typ::Type{T}, c, val::T) = val
+retconvert(typ::Type{T}, c, val::T) where {T} = val
 
 # a stagedfunction will probably be simpler and better
 function build_function(f)
@@ -133,7 +134,7 @@ function build_function(f)
     tret = f[:return_type]
 
     parts = split(string(name), "_"; limit=2)
-    reciever = parts[1]
+    receiver = parts[1]
     shortname = Symbol(parts[2])
     if shortname == :eval
         shortname = :vim_eval
@@ -143,27 +144,28 @@ function build_function(f)
     args = Symbol[Symbol(string("a_", p[2])) for p in params]
     j_args = Expr[]
 
-    for (i, p) in enumerate(params)
-        # this is probably too restrictive sometimes,
-        # use convert for some types (sequences)?
-        t = gettype(p[1])
-        # if type is an array
-        # we will allow any Vector argument
-        # and dynamically check if not a subtype
-        erased = t
-        if t <: Vector
-            erased = Union{Vector,Tuple{Vararg{eltype(t)}}}
-            # TODO(smolck): No idea why this has a BoundsError, fix it.
-            # push!(body, :($(args[i]) = checkarg($t, $(args[i]))))
+    if length(args) != 0
+        for (i, p) in enumerate(params)
+            # this is probably too restrictive sometimes,
+            # use convert for some types (sequences)?
+            t = gettype(p[1])
+            # if type is an array
+            # we will allow any Vector argument
+            # and dynamically check if not a subtype
+            erased = t
+            if t <: Vector
+                erased = Union{Vector,Tuple{Vararg{eltype(t)}}}
+                push!(body, :($(args[i]) = checkarg($t, $(args[i]))))
+            end
+            push!(j_args, :($(args[i])::($erased)))
         end
-        push!(j_args, :($(args[i])::($erased)))
     end
 
-    if reciever == "vim"
+    # TODO(smolck): if receiver == "vim"
+    if length(j_args) == 0 || receiver == "vim"
         pushfirst!(j_args, :(c::NvimClient))
     else
-        # TODO(smolck): No idea why this has a BoundsError, fix it.
-        # pushfirst!(body, :(c = ($(args[1])).client))
+        pushfirst!(body, :(c = ($(args[1])).client))
     end
 
     # when array constructor non-concatenating, we could drop the Any

@@ -40,8 +40,8 @@ import Base.-, Base.+
 +(a::EndRelIndex, b::Integer) = EndRelIndex(a.i + b)
 +(a::Integer, b::EndRelIndex) = EndRelIndex(a + b.i)
 
-Base.Colon(a::Integer, b::EndRelIndex) = CappedRange(a, b)
-Base.Colon(a::EndRelIndex, b::Union{Integer, EndRelIndex}) = CappedRange(a, b)
+Base.:(:)(a::Integer, b::EndRelIndex) = CappedRange(a, b)
+Base.:(:)(a::EndRelIndex, b::Union{Integer, EndRelIndex}) = CappedRange(a, b)
 
 Base.getindex(b::Buffer, r::CappedRange) = get_line_slice(b, r.start, r.stop, true, true)
 Base.getindex(b::Buffer, ::Colon) = b[1:end]
@@ -51,7 +51,7 @@ function Base.getindex(b::Buffer, i::Union{Integer, EndRelIndex})
 end
 function Base.getindex(b::Buffer, r::UnitRange{T}) where {T<:Integer}
     if (r.start > r.stop)
-        Array(ByteString, 0)
+        String[]
     else
         b[CappedRange(r.start, r.stop)]
     end
