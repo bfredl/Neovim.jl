@@ -6,4 +6,4 @@ before_install:
   - sudo apt-get update -qq;
     eval "$(curl -Ss https://raw.githubusercontent.com/neovim/bot-ci/master/scripts/travis-setup.sh) nightly-x64";
 script:
-    - julia -e 'using Pkg; Pkg.init(); Pkg.instantiate(); Pkg.develop(PackageSpec(path=pwd())); Pkg.test("Neovim")'
+    - julia -e 'using Pkg; Pkg.instantiate(); Pkg.develop(PackageSpec(path=pwd())); Pkg.test("Neovim")'

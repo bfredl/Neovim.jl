@@ -13,7 +13,8 @@ end
 import Base.==
 ==(a::NvimApiObject{N}, b::NvimApiObject{N}) where {N} = a.hnd == b.hnd
 
-NvimApiObject(c, e::Extension) = NvimApiObject{Int8(e.type)}(c, e.data)
+NvimApiObject(c, e::Extension) = NvimApiObject{UInt8(e.type)}(c, e.data)
+
 # Not really module-interface clean, I know...
 MsgPack.pack(s, o::NvimApiObject{N}) where {N} = MsgPack.pack(s, Extension(N, o.hnd))
 
@@ -120,8 +121,8 @@ retconvert(typ::Type{Any}, c, val::Vector) = Any[retconvert(Any, c, v) for v in 
 # handle the only case, 2-tuples, manually for now
 retconvert(::Type{Tuple{T,U}}, c, val::Vector) where {T,U} =
     (retconvert(T, c, val[1]), retconvert(U, c, val[2]))
-    
-retconvert(typ::Type{NvimApiObject{N}}, c, val::Extension) where {N} = NvimApiObject(c, val) # ::NvimApiObject{N}
+
+retconvert(typ::Type{NvimApiObject{N}}, c, val::Extension) where {N} = NvimApiObject(c, val)::NvimApiObject{N}
 
 # retconvert{T}(typ::Type{T}, c, val::T) = val
 

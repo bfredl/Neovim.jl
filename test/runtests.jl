@@ -10,7 +10,7 @@ import Neovim: on_notify, on_request
 nvim = Neovim.nvim_spawn()
 
 # Test buffer
-buf = Neovim.get_buffers(nvim)[1]
+buf = get_buffers(nvim)[1]
 @assert isa(buf, Neovim.Buffer)
 set_line(buf, 0, "some text")
 text = get_line(buf, 0)
