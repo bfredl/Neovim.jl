@@ -9,7 +9,7 @@ using Neovim
 import Neovim: get_buffers, set_line, get_line
 import Neovim: vim_eval, command, get_var, set_var
 import Neovim: on_notify, on_request
-nvim = Neovim.nvim_spawn()
+nvim, proc = Neovim.nvim_spawn()
 
 # Test buffer
 buf = get_buffers(nvim)[1]
@@ -126,7 +126,7 @@ end
 
 # notification
 ref = RemoteChannel()
-nvim = nvim_spawn(TestHandler(ref))
+nvim, proc = nvim_spawn(TestHandler(ref))
 command(nvim, "call rpcnotify($(nvim.channel_id), 'mymethod', 10, 20)")
 @assert take!(ref) == ("mymethod", Any[10, 20])
 
@@ -152,22 +152,26 @@ hostdir = dirname(dirname(@__FILE__))
 plugdir = joinpath(dirname(@__FILE__), "hosttest")
 
 # fake initialization for :UpdateRemotePlugins
-vimdir = mktempdir()
+vimdir = mktempdir(cleanup=false)
 nvimrc = joinpath(vimdir, "nvimrc")
 open(f -> nothing, nvimrc,"w")
 ENV["MYVIMRC"] = nvimrc
 ENV["NEOVIM_JL_DEBUG"] = "templog"
+println(vimdir)
+ENV["NVIM_RPLUGIN_MANIFEST"] = vimdir * "/rplugin.vim"
+ENV["NVIM_LOG_FILE"] = vimdir * "/.nvimlog"
 rtp = "set rtp+=$hostdir,$plugdir"
 juliap = "let g:julia_host_prog = '$(joinpath(Sys.BINDIR, "julia"))'"
-run(`nvim -u $nvimrc -i NONE --cmd $rtp --cmd $juliap -c UpdateRemotePlugins -c q`)
+cmd = `nvim -u $nvimrc -i NONE --cmd $rtp --cmd $juliap -c UpdateRemotePlugins`
+run(cmd)
 println("REGISTERED")
 # TODO(smolck): Neither of these work:
-# run(`cat templog`)
-# run(`cat $(joinpath(vimdir, ".nvimrc-rplugin~"))`)
+run(`cat templog`)
+run(`cat $(joinpath(vimdir, ".nvimrc-rplugin~"))`)
 
 try
     ref = RemoteChannel()
-    n = nvim_spawn(TestHandler(ref), cmd=`nvim --embed -u $nvimrc -i NONE --cmd $rtp --cmd $juliap`)
+    n, p = nvim_spawn(TestHandler(ref), cmd=`nvim --embed -u $nvimrc -i NONE --cmd $rtp --cmd $juliap`)
 
     @assert vim_eval(n, "TestFun('a',3)") == "TestFun got a, 3"
 

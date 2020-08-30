@@ -8,8 +8,9 @@ import Neovim: get_var, set_var, vim_eval
 # allow name on options or on handler
 # allow one-line or muli-line method def
 
-@Neovim.fn (sync=true) ->
-TestFun(nvim, args) = "TestFun got " * join(args, ", ")
+# println(macroexpand(Neovim, :(@Neovim.fn(function AsyncFun(nvim, args) print(args) end))))
+
+@Neovim.fn (sync=true) TestFun(nvim, args) = "TestFun got " * join(args, ", ")
 
 @Neovim.fn function AsyncFun(nvim, args)
     set_var(nvim, "args", args)

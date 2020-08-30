@@ -3,23 +3,21 @@ const RESPONSE = 1
 const NOTIFICATION = 2
 
 import Distributed.RemoteChannel
-import Base.Process
 
-mutable struct NvimClient <: NvimObject
-    proc::Process # Neovim process
-    # input::S # Input to nvim
-    # output::S
+mutable struct NvimClient{S, O} <: NvimObject
+    input::S # Input to nvim
+    output::O
 
     channel_id::Int
     next_reqid::Int
     waiting::Dict{Int,RemoteChannel}
     reader::Task
-    NvimClient(p, c, n, w, r) = new(p, c, n, w, r)
-    NvimClient(p, c, n, w) = new(p, c, n, w)
+    NvimClient(i, o, c, n, w, r) = new{typeof(i), typeof(o)}(i, o, c, n, w, r)
+    NvimClient(i, o, c, n, w) = new{typeof(i), typeof(o)}(i, o, c, n, w)
 end
 
-function NvimClient(process::Process, handler=DummyHandler())
-    c = NvimClient(process, -1, 0, Dict{Int,RemoteChannel}())
+function NvimClient(input, output, handler=DummyHandler())
+    c = NvimClient(input, output, -1, 0, Dict{Int,RemoteChannel}())
     c.reader = @async readloop(c, handler)
     c.channel_id, metadata = send_request(c, "nvim_get_api_info", [])
     # println("CONNECTED $(c.channel_id)"); flush(STDOUT)
@@ -32,8 +30,8 @@ end
 # this is probably not most efficient in the common case (no contention)
 # but it's the simplest way to assure task-safety of reading from the stream
 function readloop(c::NvimClient, handler)
-    while !eof(c.proc)
-        msg = unpack(c.proc.out)
+    while !eof(c.output)
+        msg = unpack(c.output)
         kind = msg[1]
         if kind == RESPONSE
             serial = msg[2]
@@ -72,7 +70,7 @@ end
 Base.wait(c::NvimClient) = wait(c.reader)
 
 # we cannot use pack(stream, msg) as it's not synchronous
-_send(c, msg) = (write(c.proc.in, pack(msg)), flush(c.proc.in))
+_send(c, msg) = (write(c.input, pack(msg)), flush(c.input))
 
 function send_request(c::NvimClient, meth, args)
     reqid = c.next_reqid

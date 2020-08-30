@@ -12,7 +12,7 @@ end
 function on_notify(h::HostHandler, c, name::AbstractString, args::Vector{Any})
     proc = require_callback(h, name)
 
-    if proc == nothing
+    if proc === nothing
         println(stderr, "Callback for notification $name not defined.\n")
     end
 
@@ -120,7 +120,7 @@ macro fnsync(args...)
 end
 
 function fun(ex)
-    if ex.head == :block && length(ex.args) == 2 && ex.args[1].head == :line
+    if ex.head == :block && length(ex.args) == 2 && ex.args[2].head == :call
         ex.args[2]
     else
         @assert ex.head == :function || ex.head == :(=)
@@ -151,6 +151,7 @@ function call_plug(proc_type, args...; sync=false)
         else
             error("malformatted registration macro")
         end
+        println(args[1].args)
         handler = fun(args[1])
         @assert handler.args[1].head == :call
         name = handler.args[1].args[1]

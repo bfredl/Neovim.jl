@@ -29,12 +29,12 @@ function nvim_spawn(args...; cmd=`nvim --embed`)
     #output, input, proc = readandwrite(cmd)
     # (NvimClient(p, args...), proc)
     p = open(cmd, "r+")
-    NvimClient(p, args...)
+    (NvimClient(p.in, p.out, args...), p)
 end
 
 function nvim_child(args...)
     # make stdio private. Reversed since from nvim's perspective
-    input, output = STDOUT, STDIN
+    input, output = stdout, stdin
     if haskey(ENV, "NEOVIM_JL_DEBUG")
         debug = open(ENV["NEOVIM_JL_DEBUG"], "w")
         redirect_stdout(debug)
