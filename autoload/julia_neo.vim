@@ -3,7 +3,7 @@ function! julia_neo#RequireJuliaHost(host)
   let prog = get(g:, 'julia_host_prog', 'julia')
 
   try
-    return jobstart([prog, '-e', 'using Neovim; start_host()'])
+    return jobstart([prog, '-e', 'using Neovim; start_host()'], {'rpc': v:true})
   catch
     echomsg v:exception
   endtry

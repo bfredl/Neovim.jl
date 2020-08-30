@@ -10,7 +10,8 @@ import Neovim: get_var, set_var, vim_eval
 
 # println(macroexpand(Neovim, :(@Neovim.fn(function AsyncFun(nvim, args) print(args) end))))
 
-@Neovim.fn (sync=true) TestFun(nvim, args) = "TestFun got " * join(args, ", ")
+@Neovim.fn (sync=true) ->
+TestFun(nvim, args) = "TestFun got " * join(args, ", ")
 
 @Neovim.fn function AsyncFun(nvim, args)
     set_var(nvim, "args", args)

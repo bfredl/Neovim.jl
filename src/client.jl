@@ -4,16 +4,16 @@ const NOTIFICATION = 2
 
 import Distributed.RemoteChannel
 
-mutable struct NvimClient{S, O} <: NvimObject
+mutable struct NvimClient{S} <: NvimObject
     input::S # Input to nvim
-    output::O
+    output::S
 
     channel_id::Int
     next_reqid::Int
     waiting::Dict{Int,RemoteChannel}
     reader::Task
-    NvimClient(i, o, c, n, w, r) = new{typeof(i), typeof(o)}(i, o, c, n, w, r)
-    NvimClient(i, o, c, n, w) = new{typeof(i), typeof(o)}(i, o, c, n, w)
+    NvimClient(i, o, c, n, w, r) = new{typeof(i)}(i, o, c, n, w, r)
+    NvimClient(i, o, c, n, w) = new{typeof(i)}(i, o, c, n, w)
 end
 
 function NvimClient(input, output, handler=DummyHandler())
@@ -52,7 +52,7 @@ function readloop(c::NvimClient, handler)
             try
                 on_request(handler, c, serial, method, args)
             catch err
-                reply_error(c, serial, "Caught Exception in request handler.")
+                reply_error(c, serial, "Caught Exception in request handler: $err")
                 logerr(err, catch_backtrace(), "handler", "request", method, args)
             end
         end
@@ -60,8 +60,8 @@ function readloop(c::NvimClient, handler)
     end
 end
 
-function logerr(e::Exception, bt, where, what, name, args)
-    println(stderr, "Caught Exception in $where for $what \"$name\" with arguments $args:")
+function logerr(e::Exception, bt, wher, what, name, args)
+    println(stderr, "Caught Exception in $wher for $what \"$name\" with arguments $args:")
     showerror(stderr, e, bt)
     println(stderr, "")
     flush(stderr)
@@ -83,7 +83,6 @@ function send_request(c::NvimClient, meth, args)
     _send(c, Any[REQUEST, reqid, meth, args])
     # println("blah: ", read(c.proc, String), read(c.proc.in, String), read(c.proc.out, String))
     (err, res) = take!(rc) # blocking
-    # printlnk("HI")
     # TODO: make these recoverable
     if err !== nothing
         error(string(meth, ": ", String(err[2])))

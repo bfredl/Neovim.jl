@@ -25,7 +25,8 @@ end
 
 function on_request(h::HostHandler, c, serial, method, args)
     if method == "specs" # called on UpdateRemotePlugins
-        reply_result(c, serial, require_plugin(h, args...))
+        r = require_plugin(h, args...)
+        reply_result(c, serial, r)
         println(stderr, h)
     else
         proc = require_callback(h, method)
@@ -59,8 +60,9 @@ function require_plugin(h::HostHandler, filename)
     tls = task_local_storage()
     tls[:nvim_plugin_host] = h
     tls[:nvim_plugin_filename] = filename
+    println(stderr, "Filename: $filename")
     try
-        require(filename)
+        Base.include(Main, filename)
     catch err
         println(stderr, "Error while loading plugin $filename:")
         showerror(stderr, err, catch_backtrace())
@@ -120,7 +122,7 @@ macro fnsync(args...)
 end
 
 function fun(ex)
-    if ex.head == :block && length(ex.args) == 2 && ex.args[2].head == :call
+    if ex.head == :block && length(ex.args) == 2 # && ex.args[2].head == :line
         ex.args[2]
     else
         @assert ex.head == :function || ex.head == :(=)
@@ -151,7 +153,6 @@ function call_plug(proc_type, args...; sync=false)
         else
             error("malformatted registration macro")
         end
-        println(args[1].args)
         handler = fun(args[1])
         @assert handler.args[1].head == :call
         name = handler.args[1].args[1]

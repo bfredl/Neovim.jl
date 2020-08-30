@@ -136,6 +136,7 @@ command(nvim, "call rpcnotify($(nvim.channel_id), 'mymethod', 10, 20)")
 # type stability of generated functions
 # TODO(smolck): This doesn't pass now
 # @assert return_types(Neovim.get_buffers, (NvimClient,)) == [Vector{Buffer}]
+
 @assert return_types(Neovim.command, (NvimClient, String)) == [Nothing]
 @assert return_types(Neovim.get_current_line, (NvimClient,)) == [String]
 @assert return_types(Neovim.is_valid, (Tabpage,)) == [Bool]
@@ -162,16 +163,16 @@ ENV["NVIM_RPLUGIN_MANIFEST"] = vimdir * "/rplugin.vim"
 ENV["NVIM_LOG_FILE"] = vimdir * "/.nvimlog"
 rtp = "set rtp+=$hostdir,$plugdir"
 juliap = "let g:julia_host_prog = '$(joinpath(Sys.BINDIR, "julia"))'"
-cmd = `nvim -u $nvimrc -i NONE --cmd $rtp --cmd $juliap -c UpdateRemotePlugins`
+cmd = `nvim -u $nvimrc -i NONE --cmd $rtp --cmd $juliap -c UpdateRemotePlugins -c q`
+println(cmd)
 run(cmd)
 println("REGISTERED")
-# TODO(smolck): Neither of these work:
 run(`cat templog`)
-run(`cat $(joinpath(vimdir, ".nvimrc-rplugin~"))`)
 
 try
-    ref = RemoteChannel()
-    n, p = nvim_spawn(TestHandler(ref), cmd=`nvim --embed -u $nvimrc -i NONE --cmd $rtp --cmd $juliap`)
+    local ref = RemoteChannel()
+    cmd2 = `nvim -u $nvimrc -i NONE --cmd $rtp --cmd $juliap --embed`
+    n, p = nvim_spawn(TestHandler(ref), cmd2)
 
     @assert vim_eval(n, "TestFun('a',3)") == "TestFun got a, 3"
 
