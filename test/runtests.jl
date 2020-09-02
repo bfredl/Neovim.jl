@@ -164,15 +164,13 @@ ENV["NVIM_LOG_FILE"] = vimdir * "/.nvimlog"
 rtp = "set rtp+=$hostdir,$plugdir"
 juliap = "let g:julia_host_prog = '$(joinpath(Sys.BINDIR, "julia"))'"
 cmd = `nvim -u $nvimrc -i NONE --cmd $rtp --cmd $juliap -c UpdateRemotePlugins -c q`
-println(cmd)
 run(cmd)
 println("REGISTERED")
 run(`cat templog`)
 
 try
     local ref = RemoteChannel()
-    cmd2 = `nvim -u $nvimrc -i NONE --cmd $rtp --cmd $juliap --embed`
-    n, p = nvim_spawn(TestHandler(ref), cmd2)
+    n, p = nvim_spawn(TestHandler(ref), cmd=`nvim -u $nvimrc -i NONE --cmd $rtp --cmd $juliap --embed`)
 
     @assert vim_eval(n, "TestFun('a',3)") == "TestFun got a, 3"
 
