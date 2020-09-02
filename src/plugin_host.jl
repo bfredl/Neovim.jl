@@ -25,8 +25,7 @@ end
 
 function on_request(h::HostHandler, c, serial, method, args)
     if method == "specs" # called on UpdateRemotePlugins
-        r = require_plugin(h, args...)
-        reply_result(c, serial, r)
+        reply_result(c, serial, require_plugin(h, args...))
         println(stderr, h)
     else
         proc = require_callback(h, method)
@@ -60,7 +59,6 @@ function require_plugin(h::HostHandler, filename)
     tls = task_local_storage()
     tls[:nvim_plugin_host] = h
     tls[:nvim_plugin_filename] = filename
-    println(stderr, "Filename: $filename")
     try
         Base.include(Main, filename)
     catch err

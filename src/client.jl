@@ -81,7 +81,6 @@ function send_request(c::NvimClient, meth, args)
     meth = string(meth)
 
     _send(c, Any[REQUEST, reqid, meth, args])
-    # println("blah: ", read(c.proc, String), read(c.proc.in, String), read(c.proc.out, String))
     (err, res) = take!(rc) # blocking
     # TODO: make these recoverable
     if err !== nothing

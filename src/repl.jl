@@ -30,7 +30,7 @@ function Neovim.on_notify(s::NvimReplState, nv, name, args)
         update_screen()
         if name == "update"
             #done
-        elseif name == "insert" 
+        elseif name == "insert"
             s.active = false
         end
     end

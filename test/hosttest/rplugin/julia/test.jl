@@ -1,4 +1,3 @@
-#TEST
 module MyPlugin
 using Neovim
 import Neovim: get_var, set_var, vim_eval
@@ -7,8 +6,6 @@ import Neovim: get_var, set_var, vim_eval
 # allow handler on same line or continued with ->
 # allow name on options or on handler
 # allow one-line or muli-line method def
-
-# println(macroexpand(Neovim, :(@Neovim.fn(function AsyncFun(nvim, args) print(args) end))))
 
 @Neovim.fn (sync=true) ->
 TestFun(nvim, args) = "TestFun got " * join(args, ", ")
