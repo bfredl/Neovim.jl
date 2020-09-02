@@ -40,10 +40,10 @@ function nvim_child(args...)
         redirect_stdout(debug)
         redirect_stderr(debug)
     else
-        # redirect_stdout()
-        # redirect_stderr()
+        redirect_stdout()
+        redirect_stderr()
     end
-    # redirect_stdin()
+    redirect_stdin()
 
     NvimClient(input, output, args...)
 end
