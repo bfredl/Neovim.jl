@@ -1,5 +1,6 @@
 language: julia
 julia:
+  - 1
   - 1.5.0
   - nightly
 before_install:
