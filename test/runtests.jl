@@ -165,18 +165,18 @@ rtp = "set rtp+=$hostdir,$plugdir"
 juliap = "let g:julia_host_prog = '$(joinpath(Sys.BINDIR, "julia"))'"
 cmd = `nvim -u $nvimrc -i NONE --cmd $rtp --cmd $juliap -c UpdateRemotePlugins -c q`
 run(cmd)
-println("REGISTERED")
 run(`cat templog`)
 
 try
     local ref = RemoteChannel()
-    n, p = nvim_spawn(TestHandler(ref), cmd=`nvim -u $nvimrc -i NONE --cmd $rtp --cmd $juliap --embed`)
+    n, p = nvim_spawn(TestHandler(ref), cmd=`nvim -u $nvimrc -i NONE --cmd $rtp --cmd $juliap --embed --headless`)
 
     @assert vim_eval(n, "TestFun('a',3)") == "TestFun got a, 3"
 
     command(n, "call AsyncFun($(n.channel_id), {'alfa':1, 'omega':'theend'})")
     @assert take!(ref) == ("AsyncReply", Any[Dict("alfa" => 1, "omega" => "theend")])
 
+    command(n, "new")
     b = current_buffer(n)
     b[1:5] = "line"
     command(n, "2,3JLCommand text")
@@ -198,5 +198,5 @@ try
 
 finally
 # for debugging tests:
-# TODO(smolck): run(`cat templog`)
+    run(`cat templog`)
 end
