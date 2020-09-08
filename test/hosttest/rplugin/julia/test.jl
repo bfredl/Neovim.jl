@@ -1,4 +1,3 @@
-#TEST
 module MyPlugin
 using Neovim
 import Neovim: get_var, set_var, vim_eval
