@@ -3,6 +3,7 @@ module Neovim
 using Compat
 using MsgPack
 import MsgPack: pack, unpack
+import Sockets: connect
 
 export NvimClient, nvim_connect, nvim_env, nvim_spawn, nvim_child, start_host
 export Buffer, Tabpage, Window
