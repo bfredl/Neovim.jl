@@ -120,7 +120,7 @@ macro fnsync(args...)
 end
 
 function fun(ex)
-    if ex.head == :block && length(ex.args) == 2 # && ex.args[2].head == :line
+    if ex.head == :block && length(ex.args) == 2
         ex.args[2]
     else
         @assert ex.head == :function || ex.head == :(=)

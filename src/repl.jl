@@ -3,14 +3,10 @@
 # Then, at any time, press Ctrl-O to edit in normal mode.
 # To be able to execute code and search history etc, going back to insert mode is neccesary.
 # For the moment, the first keypress after going to insert mode disappears sometimes.
-# import Base: LineEdit, REPL
 import REPL
 import REPL.LineEdit
 
 include("Neovim.jl")
-
-# using Neovim
-# import Neovim: get_cursor, set_cursor, command, input
 
 mutable struct NvimReplState
     active::Bool

@@ -25,9 +25,7 @@ end
 nvim_env(args...) = nvim_connect(ENV["NVIM_LISTEN_ADDRESS"], args...)
 
 function nvim_spawn(args...; cmd=`nvim --embed`)
-    # TODO(smolck): Just use the Process handle instead of p.in and p.out
-    #output, input, proc = readandwrite(cmd)
-    # (NvimClient(p, args...), proc)
+    # TODO(smolck): Maybe just use the Process handle instead of p.in and p.out
     p = open(cmd, "r+")
     (NvimClient(p.in, p.out, args...), p)
 end

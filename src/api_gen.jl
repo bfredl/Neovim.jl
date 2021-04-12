@@ -20,14 +20,12 @@ NvimApiObject(c, e::Extension) = NvimApiObject{UInt8(e.type)}(c, e.data)
 MsgPack.pack(s::IO, o::NvimApiObject{N}) where {N} = MsgPack.pack(s, Extension(N, o.hnd))
 
 symbolize(val::Dict) = Dict{Symbol,Any}([(symbolize(k), symbolize(v)) for (k, v) in val])
-# symbolize(val::Vector{UInt8}) = symbol(bytestring(val))
 symbolize(val::Vector{UInt8}) = Symbol(String(val))
 symbolize(val::String) = Symbol(val)
 symbolize(val::Vector) = [symbolize(v) for v in val]
 symbolize(val) = val
 
 function _get_metadata()
-    # TODO(smolck)
     data = read(`nvim --api-info`, String)
     return symbolize(unpack(data))
 end
@@ -39,7 +37,6 @@ const _functions = _metadata[:functions]
 # will break if the api starts using overloading
 const api_methods = [f[:name] => f for f in _functions]
 
-# TODO(smolck): typealias Bytes Union{String, Vector{UInt8}}
 const Bytes = Union{String,Vector{UInt8}}
 const typemap = Dict{Symbol,Type}(
     :Integer => Integer,
@@ -161,7 +158,6 @@ function build_function(f)
         end
     end
 
-    # TODO(smolck): if receiver == "vim"
     if length(j_args) == 0 || receiver == "vim"
         pushfirst!(j_args, :(c::NvimClient))
     else

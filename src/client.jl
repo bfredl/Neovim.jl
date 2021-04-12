@@ -20,7 +20,6 @@ function NvimClient(input, output, handler=DummyHandler())
     c = NvimClient(input, output, -1, 0, Dict{Int,RemoteChannel}())
     c.reader = @async readloop(c, handler)
     c.channel_id, metadata = send_request(c, "nvim_get_api_info", [])
-    # println("CONNECTED $(c.channel_id)"); flush(STDOUT)
     if symbolize(metadata) != _metadata
         println("warning: possibly incompatible api metadata")
     end

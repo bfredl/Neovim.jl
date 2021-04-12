@@ -1,0 +1,38 @@
+Caught Exception in callback for request "/Users/smolck/Development/julia/Neovim.jl/test/hosttest/rplugin/julia/test.jl:command:Explode" with arguments Any[]:
+KABOOM!
+Stacktrace:
+ [1] error(s::String)
+   @ Base ./error.jl:33
+ [2] Explode(nvim::NvimClient{Base.PipeEndpoint})
+   @ Main.MyPlugin ~/Development/julia/Neovim.jl/test/hosttest/rplugin/julia/test.jl:25
+ [3] macro expansion
+   @ ~/Development/julia/Neovim.jl/src/plugin_host.jl:40 [inlined]
+ [4] (::Neovim.var"#13#14"{NvimClient{Base.PipeEndpoint}, UInt8, String, Vector{Any}, typeof(Main.MyPlugin.Explode)})()
+   @ Neovim ./task.jl:406
+
+signal (15): Terminated: 15
+in expression starting at none:1
+jfptr_wait_30725 at /Applications/Julia-1.6.app/Contents/Resources/julia/lib/julia/sys.dylib (unknown line)
+jl_apply_generic at /Applications/Julia-1.6.app/Contents/Resources/julia/lib/julia/libjulia-internal.1.6.dylib (unknown line)
+_wait at ./task.jl:288
+wait at ./task.jl:315 [inlined]
+wait at /Users/smolck/Development/julia/Neovim.jl/src/client.jl:70 [inlined]
+start_host at /Users/smolck/Development/julia/Neovim.jl/src/plugin_host.jl:2
+unknown function (ip: 0x12295263c)
+jl_apply_generic at /Applications/Julia-1.6.app/Contents/Resources/julia/lib/julia/libjulia-internal.1.6.dylib (unknown line)
+do_call at /Applications/Julia-1.6.app/Contents/Resources/julia/lib/julia/libjulia-internal.1.6.dylib (unknown line)
+eval_body at /Applications/Julia-1.6.app/Contents/Resources/julia/lib/julia/libjulia-internal.1.6.dylib (unknown line)
+jl_interpret_toplevel_thunk at /Applications/Julia-1.6.app/Contents/Resources/julia/lib/julia/libjulia-internal.1.6.dylib (unknown line)
+jl_toplevel_eval_flex at /Applications/Julia-1.6.app/Contents/Resources/julia/lib/julia/libjulia-internal.1.6.dylib (unknown line)
+jl_toplevel_eval_flex at /Applications/Julia-1.6.app/Contents/Resources/julia/lib/julia/libjulia-internal.1.6.dylib (unknown line)
+jl_toplevel_eval_flex at /Applications/Julia-1.6.app/Contents/Resources/julia/lib/julia/libjulia-internal.1.6.dylib (unknown line)
+jl_toplevel_eval_in at /Applications/Julia-1.6.app/Contents/Resources/julia/lib/julia/libjulia-internal.1.6.dylib (unknown line)
+eval at ./boot.jl:360 [inlined]
+exec_options at ./client.jl:261
+_start at ./client.jl:485
+jfptr__start_32776 at /Applications/Julia-1.6.app/Contents/Resources/julia/lib/julia/sys.dylib (unknown line)
+jl_apply_generic at /Applications/Julia-1.6.app/Contents/Resources/julia/lib/julia/libjulia-internal.1.6.dylib (unknown line)
+true_main at /Applications/Julia-1.6.app/Contents/Resources/julia/lib/julia/libjulia-internal.1.6.dylib (unknown line)
+repl_entrypoint at /Applications/Julia-1.6.app/Contents/Resources/julia/lib/julia/libjulia-internal.1.6.dylib (unknown line)
+unknown function (ip: 0x0)
+Allocations: 8258865 (Pool: 8256969; Big: 1896); GC: 11
