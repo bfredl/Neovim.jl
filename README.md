@@ -98,4 +98,4 @@ end
 ```
 
 After writing your Julia script, you should call `:UpdateRemotePlugins` to
-register these functions, and make them callable from Vimscript and Lua.
+register these functions and make them callable from Vimscript and Lua.
