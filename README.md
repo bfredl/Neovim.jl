@@ -1,10 +1,36 @@
-# Neovim client for julia
+# Neovim client for Julia
 
 [![Build Status](https://travis-ci.org/bfredl/Neovim.jl.svg?branch=master)](https://travis-ci.org/bfredl/Neovim.jl)
 
-This is a neovim api client for julia. It supports embedding a nvim process in julia and conversely acting as a child process to nvim, as well as connecting to an external instance over a socket. It also works as a plugin host. Currently it assumes `nvim` is in `$PATH`
+Neovim.jl is a Neovim API client and plugin host for Julia. It supports:
 
-Simplest way to test the api client is to spawn an embedded instance:
+- Embedding a nvim process in Julia
+- Acting as a child process to nvim
+- Connecting to external instances over a socket.
+
+Currently it assumes `nvim` is in `$PATH`.
+
+
+## Requirements
+
+- Julia 1.0
+- Neovim 0.4 <!-- FIXME: is this right? -->
+
+
+## Installation
+
+Add this package to your current Julia environment:
+```
+using Pkg
+Pkg.add(url="https://github.com/bfredl/Neovim.jl")
+```
+
+
+## Usage
+
+### Using as an embedded process
+
+The Simplest way to test the API client is to spawn an embedded instance:
 ```julia
 using Neovim
 nvim, proc = nvim_spawn()
@@ -17,7 +43,7 @@ nvim = nvim_connect("/socket/address")
 
 As a shortcut, `nvim = nvim_env()` will use the address in `$NVIM_LISTEN_ADDRESS`. This is useful to connect to the "parent" nvim instance when running the Julia REPL in a nvim terminal window.
 
-All API methods defined in metadata is defined as corresponding julia functions on the `Neovim` module, except that the `vim_`/`buffer_` prefix is dropped (as the reciever type is identified by the first argument anyway), except for `vim_eval` as `eval` is not overloadable. For instance:
+All API methods defined in metadata is defined as corresponding Julia functions on the `Neovim` module, except that the `vim_`/`buffer_` prefix is dropped (as the receiver type is identified by the first argument anyway), except for `vim_eval` as `eval` is not overloadable. For instance:
 ```julia
 import Neovim: get_buffers, set_line, vim_eval
 buf = get_buffers(nvim)[1]
@@ -27,13 +53,16 @@ set_line(buf, 1, "some text")
 
 A high level interface is work in progress. For the moment `Buffer` supports simple array operations, please see `test/runtests.jl` for examples.
 
-The module exports a low-level interface for handling asynchronous events (notifications and requests). A prototype (read: ugly hack) implementation of vim bindings for the julia REPL is included as an example, see `src/repl.jl`.
+The module exports a low-level interface for handling asynchronous events (notifications and requests). A prototype (read: ugly hack) implementation of Vim bindings for the Julia REPL is included as an example, see `src/repl.jl`.
 
-This package also includes a remote plugin host, similar to the one in python-client. To use it, it is recommended to manage this package using the Julia package manager (as it handles dependencies and julia package path), and also add this repo root to runtimepath in nvimrc:
 
-    set rtp+=~/.julia/Neovim/
+### Using as a plugin host
 
-A julia plugin can then be defined in a `rplugin/julia/` subfolder to your nvim folder or to a plugin repo. Functions defined at toplevel can be exported using macros in the Neovim module. `@fn`, `@command`, `@autocmd` can be used, as well as variants ending with `sync`.
+This package also includes a remote plugin host, similar to the one in python-client. To use it, it is recommended to manage this package using the Julia package manager (as it handles dependencies and Julia package path), and also add this repo root to `runtimepath` in `init.vim`:
+```
+set rtp+=~/.julia/packages/Neovim/
+```
+A Julia plugin can then be defined in a `rplugin/julia/` subdirectory to your nvim directory or to a plugin repo. Functions defined at toplevel can be exported using macros in the Neovim module. `@fn`, `@command`, `@autocmd` can be used, as well as variants ending with `sync`.
 ```julia
 module MyPlugin
 using Neovim
