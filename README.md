@@ -6,7 +6,7 @@ Neovim.jl is a Neovim API client and plugin host for Julia. It supports:
 
 - Embedding a nvim process in Julia
 - Acting as a child process to nvim
-- Connecting to external instances over a socket.
+- Connecting to external instances over a socket
 
 Currently it assumes `nvim` is in `$PATH`.
 
@@ -20,7 +20,7 @@ Currently it assumes `nvim` is in `$PATH`.
 ## Installation
 
 Add this package to your current Julia environment:
-```
+```julia
 using Pkg
 Pkg.add(url="https://github.com/bfredl/Neovim.jl")
 ```
@@ -58,7 +58,7 @@ The module exports a low-level interface for handling asynchronous events (notif
 
 ### Using as a plugin host
 
-This package also includes a remote plugin host, similar to the one in python-client. To use it, it is recommended to manage this package using the Julia package manager (as it handles dependencies and Julia package path), and also add this repo root to `runtimepath` in `init.vim`:
+This package also includes a remote plugin host, similar to the one in the Python client [pynvim](https://github.com/neovim/pynvim). To use it, add this repo root to `runtimepath` in `init.vim`:
 ```
 set rtp+=~/.julia/packages/Neovim/
 ```
