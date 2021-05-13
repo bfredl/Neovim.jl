@@ -30,7 +30,7 @@ function _get_metadata()
     try
         data = read(`nvim --api-info`, String)
     catch x
-        if isa(x, SystemError)
+        if isa(x, Base.IOError)
             data = read("src/api-metadata", String)
         else
             rethrow()
