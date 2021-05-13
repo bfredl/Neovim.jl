@@ -26,16 +26,12 @@ symbolize(val::Vector) = [symbolize(v) for v in val]
 symbolize(val) = val
 
 function _get_metadata()
-    data = Nothing
-    try
-        data = read(`nvim --api-info`, String)
-    catch x
-        if isa(x, Base.IOError)
-            data = read("src/api-metadata", String)
-        else
-            rethrow()
-        end
+    # https://github.com/JuliaRegistries/RegistryCI.jl/issues/283#issuecomment-715362834
+    if get(ENV, "JULIA_REGISTRYCI_AUTOMERGE", "") == "true"
+        return Dict([(:types, []), (:functions, [])])
     end
+
+    data = read(`nvim --api-info`, String)
     return symbolize(unpack(data))
 end
 
