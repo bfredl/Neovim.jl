@@ -26,7 +26,16 @@ symbolize(val::Vector) = [symbolize(v) for v in val]
 symbolize(val) = val
 
 function _get_metadata()
-    data = read(`nvim --api-info`, String)
+    data = Nothing
+    try
+        data = read(`nvim --api-info`, String)
+    catch x
+        if isa(x, SystemError)
+            data = read("src/api-metadata", String)
+        else
+            rethrow()
+        end
+    end
     return symbolize(unpack(data))
 end
 
