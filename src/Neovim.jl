@@ -6,16 +6,22 @@ import MsgPack: pack, unpack
 import Sockets: connect
 
 export NvimClient, nvim_connect, nvim_env, nvim_spawn, nvim_child, start_host
-export Buffer, Tabpage, Window
 export reply_result, reply_error
 
 # types that have api methods (nvim itself + api defined types)
 abstract type NvimObject end
 
 include("client.jl")
-include("api_gen.jl")
-include("interface.jl")
-include("plugin_host.jl")
+
+# Only export API when not being checked by JuliaRegistries Automerge CI since
+# `nvim` binary isn't available there,
+# see https://github.com/JuliaRegistries/RegistryCI.jl/issues/283#issuecomment-715362834
+if !(get(ENV, "JULIA_REGISTRYCI_AUTOMERGE", "") == "true")
+    export Buffer, Tabpage, Window
+    include("api_gen.jl")
+    include("interface.jl")
+    include("plugin_host.jl")
+end
 
 # too inconvenient api to supply handler here?
 function nvim_connect(path::String, args...)
